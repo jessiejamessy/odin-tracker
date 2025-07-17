@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Odin Valhalla Guild Auction Tracker</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for Inter font and general body styling */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c; /* Dark background */
+            color: #e2e8f0; /* Light text */
+        }
+        /* Style for the table header to ensure good contrast */
+        th {
+            background-color: #2d3748; /* Slightly lighter dark for headers */
+            color: #cbd5e0;
+        }
+        /* Style for table rows */
+        tr:nth-child(even) {
+            background-color: #2d3748; /* Alternate row color */
+        }
+        tr:nth-child(odd) {
+            background-color: #1a202c; /* Default row color */
+        }
+        /* Input and select field styling */
+        input[type="text"], input[type="password"], select {
+            background-color: #2d3748;
+            border: 1px solid #4a5568;
+            color: #e2e8f0;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.375rem; /* rounded-md */
+            width: 100%;
+        }
+        input[type="text"]:focus, input[type="password"]:focus, select:focus {
+            outline: none;
+            border-color: #63b3ed; /* Blue focus ring */
+            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.5); /* Blue glow */
+        }
+        /* Button styling */
+        button {
+            background-color: #4299e1; /* Blue button */
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem; /* rounded-lg */
+            font-weight: bold;
+            transition: background-color 0.2s ease-in-out;
+        }
+        button:hover {
+            background-color: #3182ce; /* Darker blue on hover */
+        }
+        /* Delete button specific styling */
+        .delete-btn {
+            background-color: #e53e3e; /* Red for delete */
+            padding: 0.4rem 0.8rem;
+            font-size: 0.875rem; /* text-sm */
+            border-radius: 0.375rem; /* rounded-md */
+            transition: background-color 0.2s ease-in-out;
+        }
+        .delete-btn:hover {
+            background-color: #c53030; /* Darker red on hover */
+        }
+        /* Message box styling */
+        .message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #48bb78; /* Green for success */
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .message-box.show {
+            opacity: 1;
+        }
+        .message-box.error {
+            background-color: #e53e3e; /* Red for error */
+        }
+        /* Specific styles for job allocation summary */
+        .job-summary-item {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border-radius: 0.375rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .job-summary-item.received {
+            background-color: #2f855a; /* Green-700 equivalent */
+        }
+        .job-summary-item.not-received {
+            background-color: #c53030; /* Red-700 equivalent */
+        }
+        /* Admin password input container */
+        #adminPasswordContainer {
+            display: none; /* Hidden by default */
+            margin-top: 1rem;
+            padding: 1rem;
+            background-color: #2d3748;
+            border-radius: 0.5rem;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center py-8 px-4 sm:px-6 lg:px-8">
+
+    <div class="max-w-4xl w-full bg-gray-800 p-6 rounded-lg shadow-xl">
+        <h1 class="text-4xl font-extrabold text-center text-blue-400 mb-8">
+            Odin Valhalla Guild Auction Allocation Tracker
+        </h1>
+
+        <!-- Admin Controls -->
+        <div class="mb-8 p-6 bg-gray-700 rounded-lg shadow-md text-center">
+            <h2 class="text-2xl font-bold text-blue-300 mb-4">Admin Access</h2>
+            <p class="text-sm text-gray-400 mb-4">
+                Note: This is a client-side only admin feature and is NOT secure.
+                Anyone with browser developer tools can bypass this.
+            </p>
+            <button id="adminLoginBtn"
+                    class="px-6 py-3 bg-indigo-500 hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 rounded-lg">
+                Admin Login
+            </button>
+            <button id="adminLogoutBtn" style="display:none;"
+                    class="px-6 py-3 bg-red-500 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 rounded-lg ml-4">
+                Admin Logout
+            </button>
+            <p id="loggedInUserDisplay" class="text-sm text-green-400 mt-2" style="display:none;"></p>
+
+            <!-- Admin Password Input -->
+            <div id="adminPasswordContainer" class="flex flex-col items-center">
+                <input type="text" id="adminUsernameInput" placeholder="Enter username"
+                       class="w-full max-w-xs mt-4 mb-2">
+                <input type="password" id="adminPasswordInput" placeholder="Enter password"
+                       class="w-full max-w-xs mb-2">
+                <button id="submitAdminPasswordBtn"
+                        class="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded-md text-sm">
+                    Submit
+                </button>
+            </div>
+        </div>
+
+        <!-- Member Management Section -->
+        <div class="mb-8 p-6 bg-gray-700 rounded-lg shadow-md" id="memberManagementSection">
+            <h2 class="text-2xl font-bold text-blue-300 mb-4">Manage Guild Members</h2>
+            <form id="memberForm" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label for="memberName" class="block text-sm font-medium text-gray-300 mb-1">Member Name</label>
+                    <input type="text" id="memberName" name="memberName" required disabled
+                           placeholder="e.g., GuildMember01"
+                           class="mt-1 block w-full rounded-md shadow-sm">
+                </div>
+                <div>
+                    <label for="memberJob" class="block text-sm font-medium text-gray-300 mb-1">Job Specification</label>
+                    <select id="memberJob" name="memberJob" required disabled
+                            class="mt-1 block w-full rounded-md shadow-sm">
+                        <option value="">Select Job</option>
+                        <option value="Assassin">Assassin</option>
+                        <option value="Sniper">Sniper</option>
+                        <option value="Paladin">Paladin</option>
+                        <option value="Priest">Priest</option>
+                        <option value="Dark Wiz">Dark Wiz</option>
+                        <option value="Archmage">Archmage</option>
+                        <option value="Defender">Defender</option>
+                        <option value="Berserker">Berserker</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="md:col-span-2 flex justify-end mt-4">
+                    <button type="submit" id="addMemberBtn" disabled
+                            class="px-6 py-3 bg-green-500 hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 rounded-lg">
+                        Add Member
+                    </button>
+                </div>
+            </form>
+
+            <div class="overflow-x-auto rounded-lg shadow-md">
+                <table class="min-w-full divide-y divide-gray-700">
+                    <thead class="bg-gray-700">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">
+                                Member Name
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                                Job
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="memberTableBody" class="divide-y divide-gray-700">
+                        <!-- Member rows will be inserted here by JavaScript -->
+                    </tbody>
+                </table>
+                <div id="noMembersMessage" class="text-center py-8 text-gray-400 text-lg hidden">
+                    No members added yet. Add one above!
+                </div>
+            </div>
+        </div>
+
+        <!-- Form to Add New Allocation -->
+        <div class="mb-8 p-6 bg-gray-700 rounded-lg shadow-md" id="allocationFormSection">
+            <h2 class="text-2xl font-bold text-blue-300 mb-4">Add New Allocation</h2>
+            <form id="allocationForm" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label for="recipientName" class="block text-sm font-medium text-gray-300 mb-1">Recipient Name</label>
+                    <select id="recipientName" name="recipientName" required disabled
+                           class="mt-1 block w-full rounded-md shadow-sm">
+                        <option value="">Select Recipient</option>
+                        <!-- Options populated by JavaScript -->
+                    </select>
+                </div>
+                <!-- Updated field for Skill Item Type -->
+                <div>
+                    <label for="skillItemType" class="block text-sm font-medium text-gray-300 mb-1">Skill Item Type</label>
+                    <select id="skillItemType" name="skillItemType" required disabled
+                            class="mt-1 block w-full rounded-md shadow-sm">
+                        <option value="">Select Skill Type</option>
+                        <option value="Skill Book">Skill Book</option>
+                        <option value="Skill Guide">Skill Guide</option>
+                        <option value="Skill Manual">Skill Manual</option>
+                    </select>
+                </div>
+                <!-- New field for Item Rarity -->
+                <div>
+                    <label for="itemRarity" class="block text-sm font-medium text-gray-300 mb-1">Rarity</label>
+                    <select id="itemRarity" name="itemRarity" required disabled
+                            class="mt-1 block w-full rounded-md shadow-sm">
+                        <option value="">Select Rarity</option>
+                        <option value="Common">Common</option>
+                        <option value="Uncommon">Uncommon</option>
+                        <option value="Rare">Rare</option>
+                        <option value="Epic">Epic</option>
+                        <option value="Legendary">Legendary</option>
+                    </select>
+                </div>
+                <!-- Existing field for Job Specification (now auto-populated) -->
+                <div>
+                    <label for="jobSpecification" class="block text-sm font-medium text-gray-300 mb-1">Job Specification</label>
+                    <select id="jobSpecification" name="jobSpecification" required disabled
+                            class="mt-1 block w-full rounded-md shadow-sm bg-gray-600 cursor-not-allowed">
+                        <option value="">Auto-filled from Recipient</option>
+                        <option value="Assassin">Assassin</option>
+                        <option value="Sniper">Sniper</option>
+                        <option value="Paladin">Paladin</option>
+                        <option value="Priest">Priest</option>
+                        <option value="Dark Wiz">Dark Wiz</option>
+                        <option value="Archmage">Archmage</option>
+                        <option value="Defender">Defender</option>
+                        <option value="Berserker">Berserker</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <!-- Existing field for Item Specification -->
+                <div>
+                    <label for="itemSpecification" class="block text-sm font-medium text-gray-300 mb-1">Item Specification</label>
+                    <input type="text" id="itemSpecification" name="itemSpecification" disabled
+                           placeholder="e.g., +5 ATK, Fire Resistance"
+                           class="mt-1 block w-full rounded-md shadow-sm">
+                </div>
+                <div class="md:col-span-3 flex justify-end mt-4">
+                    <button type="submit" id="addAllocationBtn" disabled
+                            class="px-6 py-3 bg-blue-500 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 rounded-lg">
+                        Add Allocation
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Allocation List Table -->
+        <div class="overflow-x-auto rounded-lg shadow-md">
+            <h2 class="text-2xl font-bold text-blue-300 mb-4 px-6">Current Allocations</h2>
+
+            <!-- Filter by Job dropdown -->
+            <div class="mb-4 px-6">
+                <label for="filterJob" class="block text-sm font-medium text-gray-300 mb-1">Filter by Job:</label>
+                <select id="filterJob" class="mt-1 block w-full md:w-1/3 rounded-md shadow-sm">
+                    <option value="All">All Jobs</option>
+                    <option value="Assassin">Assassin</option>
+                    <option value="Sniper">Sniper</option>
+                    <option value="Paladin">Paladin</option>
+                    <option value="Priest">Priest</option>
+                    <option value="Dark Wiz">Dark Wiz</option>
+                    <option value="Archmage">Archmage</option>
+                    <option value="Defender">Defender</option>
+                    <option value="Berserker">Berserker</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <table class="min-w-full divide-y divide-gray-700">
+                <thead class="bg-gray-700">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">
+                            Recipient
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            Skill Item Type
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            Rarity
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            Job Spec
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            Item Spec
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            Date
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            Edited By
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">
+                            Actions
+                        </th>
+                    </tr>
+                </thead>
+                <tbody id="allocationTableBody" class="divide-y divide-gray-700">
+                    <!-- Allocation rows will be inserted here by JavaScript -->
+                </tbody>
+            </table>
+            <div id="noAllocationsMessage" class="text-center py-8 text-gray-400 text-lg hidden">
+                No allocations added yet. Start by adding one above!
+            </div>
+        </div>
+
+        <!-- Job Allocation Summary Section -->
+        <div class="mb-8 p-6 bg-gray-700 rounded-lg shadow-md mt-8">
+            <h2 class="text-2xl font-bold text-blue-300 mb-4">Job Allocation Summary</h2>
+            <div id="jobAllocationSummary" class="space-y-2">
+                <p class="text-gray-400 text-center" id="jobSummaryMessage">Select a specific job from the "Filter by Job" dropdown above to see its allocation summary.</p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Message Box for notifications -->
+    <div id="messageBox" class="message-box"></div>
+
+    <script>
+        // Get references to elements
+        const allocationForm = document.getElementById('allocationForm');
+        const recipientNameSelect = document.getElementById('recipientName');
+        const skillItemTypeSelect = document.getElementById('skillItemType');
+        const itemRaritySelect = document.getElementById('itemRarity');
+        const jobSpecificationSelect = document.getElementById('jobSpecification');
+        const itemSpecificationInput = document.getElementById('itemSpecification');
+        const addAllocationBtn = document.getElementById('addAllocationBtn');
+
+        const allocationTableBody = document.getElementById('allocationTableBody');
+        const noAllocationsMessage = document.getElementById('noAllocationsMessage');
+        const messageBox = document.getElementById('messageBox');
+        const filterJobSelect = document.getElementById('filterJob');
+
+        // Member Management Elements
+        const memberForm = document.getElementById('memberForm');
+        const memberNameInput = document.getElementById('memberName');
+        const memberJobSelect = document.getElementById('memberJob');
+        const addMemberBtn = document.getElementById('addMemberBtn');
+        const memberTableBody = document.getElementById('memberTableBody');
+        const noMembersMessage = document.getElementById('noMembersMessage');
+
+        // Admin Control Elements
+        const adminLoginBtn = document.getElementById('adminLoginBtn');
+        const adminLogoutBtn = document.getElementById('adminLogoutBtn');
+        const adminPasswordContainer = document.getElementById('adminPasswordContainer');
+        const adminUsernameInput = document.getElementById('adminUsernameInput'); // New: Username input
+        const adminPasswordInput = document.getElementById('adminPasswordInput');
+        const submitAdminPasswordBtn = document.getElementById('submitAdminPasswordBtn');
+        const loggedInUserDisplay = document.getElementById('loggedInUserDisplay'); // New: Display for logged-in user
+
+        // Job Allocation Summary Elements
+        const jobAllocationSummaryDiv = document.getElementById('jobAllocationSummary');
+        const jobSummaryMessage = document.getElementById('jobSummaryMessage');
+
+        // Local Storage Keys
+        const ALLOCATIONS_STORAGE_KEY = 'odinGuildAllocations';
+        const MEMBERS_STORAGE_KEY = 'odinGuildMembers';
+        const ADMIN_MODE_KEY = 'odinAdminMode';
+        const CURRENT_ADMIN_USER_KEY = 'odinCurrentAdminUser'; // New: Key for current admin user
+
+        // Data Arrays
+        let allocations = [];
+        let members = [];
+        let isAdminMode = false;
+        let currentAdminUser = null; // New: Stores the logged-in admin's username
+
+        // Hardcoded admin users (NOT SECURE for production)
+        const ADMIN_USERS = {
+            'Nyxz': 'admin123',
+            'Moon': 'admin123',
+            'Sada': 'admin123'
+        };
+
+        /**
+         * Displays a message box with a given message and type (success/error).
+         * @param {string} message - The message to display.
+         * @param {string} type - 'success' or 'error'.
+         */
+        function showMessageBox(message, type) {
+            messageBox.textContent = message;
+            messageBox.className = 'message-box show';
+            if (type === 'error') {
+                messageBox.classList.add('error');
+            } else {
+                messageBox.classList.remove('error');
+            }
+
+            setTimeout(() => {
+                messageBox.classList.remove('show');
+            }, 3000);
+        }
+
+        /**
+         * Toggles the enabled/disabled state of admin-controlled elements.
+         * @param {boolean} enable - True to enable, false to disable.
+         * @param {string|null} username - The username of the logged-in admin, or null if logging out.
+         */
+        function toggleAdminControls(enable, username = null) {
+            // Member Management Form
+            memberNameInput.disabled = !enable;
+            memberJobSelect.disabled = !enable;
+            addMemberBtn.disabled = !enable;
+
+            // Allocation Form
+            recipientNameSelect.disabled = !enable;
+            skillItemTypeSelect.disabled = !enable;
+            itemRaritySelect.disabled = !enable;
+            itemSpecificationInput.disabled = !enable;
+            addAllocationBtn.disabled = !enable;
+
+            // Update current admin user
+            currentAdminUser = username;
+            localStorage.setItem(CURRENT_ADMIN_USER_KEY, username || ''); // Save username to local storage
+
+            // Display logged-in user
+            if (currentAdminUser) {
+                loggedInUserDisplay.textContent = `Logged in as: ${currentAdminUser}`;
+                loggedInUserDisplay.style.display = 'block';
+            } else {
+                loggedInUserDisplay.style.display = 'none';
+            }
+
+            // Delete buttons in tables (need to re-render to apply disabled state)
+            renderMembers();
+            renderAllocations();
+            renderJobAllocationSummary(); // Also update job summary for reset button state
+
+            // Admin buttons visibility
+            adminLoginBtn.style.display = enable ? 'none' : 'inline-block';
+            adminLogoutBtn.style.display = enable ? 'inline-block' : 'none';
+
+            // Hide password input container after successful login/logout
+            adminPasswordContainer.style.display = 'none';
+            adminUsernameInput.value = ''; // Clear username field
+            adminPasswordInput.value = ''; // Clear password field
+
+            // Save admin mode state
+            localStorage.setItem(ADMIN_MODE_KEY, enable ? 'true' : 'false');
+            isAdminMode = enable;
+        }
+
+        /* --- Admin Login/Logout Handlers --- */
+        adminLoginBtn.addEventListener('click', () => {
+            adminPasswordContainer.style.display = 'block'; // Show password input
+            adminUsernameInput.focus(); // Focus on the username input field
+        });
+
+        submitAdminPasswordBtn.addEventListener('click', () => {
+            const username = adminUsernameInput.value.trim();
+            const password = adminPasswordInput.value;
+
+            if (ADMIN_USERS[username] && ADMIN_USERS[username] === password) {
+                toggleAdminControls(true, username);
+                showMessageBox(`Admin mode activated! Welcome, ${username}.`, "success");
+            } else {
+                showMessageBox("Incorrect username or password.", "error");
+            }
+        });
+
+        adminLogoutBtn.addEventListener('click', () => {
+            toggleAdminControls(false, null); // Pass null for username when logging out
+            showMessageBox("Admin mode deactivated.", "success");
+        });
+
+
+        /* --- Member Management Functions --- */
+
+        /**
+         * Saves the current members array to localStorage.
+         */
+        function saveMembers() {
+            try {
+                localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(members));
+            } catch (e) {
+                console.error("Error saving members to localStorage:", e);
+                showMessageBox("Error saving member data. Please check browser storage settings.", "error");
+            }
+        }
+
+        /**
+         * Loads members from localStorage.
+         */
+        function loadMembers() {
+            try {
+                const storedMembers = localStorage.getItem(MEMBERS_STORAGE_KEY);
+                if (storedMembers) {
+                    members = JSON.parse(storedMembers);
+                }
+            } catch (e) {
+                console.error("Error loading members from localStorage:", e);
+                showMessageBox("Error loading saved member data. Starting with a fresh member list.", "error");
+                members = [];
+            }
+        }
+
+        /**
+         * Renders all members from the 'members' array into the member table.
+         */
+        function renderMembers() {
+            memberTableBody.innerHTML = '';
+            if (members.length === 0) {
+                noMembersMessage.classList.remove('hidden');
+            } else {
+                noMembersMessage.classList.add('hidden');
+                members.forEach((member, index) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">
+                            ${member.name}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            ${member.job}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button onclick="deleteMember(${index})" class="delete-btn" ${isAdminMode ? '' : 'disabled'}>
+                                Delete
+                            </button>
+                        </td>
+                    `;
+                    memberTableBody.appendChild(row);
+                });
+            }
+            populateRecipientDropdown();
+        }
+
+        /**
+         * Deletes a member from the array and re-renders the member table.
+         * @param {number} index - The index of the member to delete.
+         */
+        function deleteMember(index) {
+            if (!isAdminMode) {
+                showMessageBox("Admin access required to delete members.", "error");
+                return;
+            }
+            if (index > -1 && index < members.length) {
+                const deletedMemberName = members[index].name;
+                members.splice(index, 1);
+                saveMembers();
+                renderMembers();
+                showMessageBox(`Member '${deletedMemberName}' deleted successfully!`, 'success');
+
+                allocations = allocations.filter(alloc => alloc.recipientName !== deletedMemberName);
+                saveAllocations();
+                renderAllocations();
+                renderJobAllocationSummary();
+            }
+        }
+
+        /**
+         * Populates the Recipient Name dropdown in the allocation form with current members.
+         */
+        function populateRecipientDropdown() {
+            recipientNameSelect.innerHTML = '<option value="">Select Recipient</option>';
+            members.forEach(member => {
+                const option = document.createElement('option');
+                option.value = member.name;
+                option.textContent = member.name;
+                recipientNameSelect.appendChild(option);
+            });
+            jobSpecificationSelect.value = "";
+            jobSpecificationSelect.options[0].textContent = "Auto-filled from Recipient";
+        }
+
+        /**
+         * Handles the selection of a recipient to auto-fill job specification.
+         */
+        recipientNameSelect.addEventListener('change', () => {
+            const selectedRecipientName = recipientNameSelect.value;
+            const selectedMember = members.find(member => member.name === selectedRecipientName);
+
+            if (selectedMember) {
+                jobSpecificationSelect.value = selectedMember.job;
+            } else {
+                jobSpecificationSelect.value = "";
+                jobSpecificationSelect.options[0].textContent = "Auto-filled from Recipient";
+            }
+        });
+
+
+        /* --- Allocation Management Functions (Modified) --- */
+
+        /**
+         * Saves the current allocations array to localStorage.
+         */
+        function saveAllocations() {
+            try {
+                localStorage.setItem(ALLOCATIONS_STORAGE_KEY, JSON.stringify(allocations));
+            } catch (e) {
+                console.error("Error saving allocations to localStorage:", e);
+                showMessageBox("Error saving allocation data. Please check browser storage settings.", "error");
+            }
+        }
+
+        /**
+         * Loads allocations from localStorage.
+         */
+        function loadAllocations() {
+            try {
+                const storedAllocations = localStorage.getItem(ALLOCATIONS_STORAGE_KEY);
+                if (storedAllocations) {
+                    allocations = JSON.parse(storedAllocations);
+                }
+            } catch (e) {
+                console.error("Error loading allocations from localStorage:", e);
+                showMessageBox("Error loading saved allocation data. Starting with a fresh list.", "error");
+                allocations = [];
+            }
+        }
+
+        /**
+         * Deletes an allocation from the array and re-renders the table.
+         * @param {string} idToDelete - The unique ID of the allocation to delete.
+         */
+        function deleteAllocation(idToDelete) {
+            if (!isAdminMode) {
+                showMessageBox("Admin access required to delete allocations.", "error");
+                return;
+            }
+            const initialLength = allocations.length;
+            allocations = allocations.filter(alloc => alloc.id !== idToDelete);
+            if (allocations.length < initialLength) {
+                saveAllocations();
+                renderAllocations();
+                renderJobAllocationSummary();
+                showMessageBox('Allocation deleted successfully!', 'success');
+            } else {
+                showMessageBox('Allocation not found.', 'error');
+            }
+        }
+
+        /**
+         * Renders allocations into the table, optionally filtered by job.
+         */
+        function renderAllocations() {
+            allocationTableBody.innerHTML = '';
+            const selectedJob = filterJobSelect.value;
+
+            const filteredAllocations = allocations.filter(allocation => {
+                return selectedJob === 'All' || allocation.jobSpecification === selectedJob;
+            });
+
+            if (filteredAllocations.length === 0) {
+                noAllocationsMessage.classList.remove('hidden');
+                if (selectedJob !== 'All') {
+                    noAllocationsMessage.textContent = `No allocations found for '${selectedJob}'.`;
+                } else {
+                    noAllocationsMessage.textContent = 'No allocations added yet. Start by adding one above!';
+                }
+            } else {
+                noAllocationsMessage.classList.add('hidden');
+                filteredAllocations.forEach((allocation) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">
+                            ${allocation.recipientName}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            ${allocation.skillItemType || 'N/A'}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            ${allocation.itemRarity || 'N/A'}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            ${allocation.jobSpecification || 'N/A'}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            ${allocation.itemSpecification || 'N/A'}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            ${allocation.date}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            ${allocation.editedBy || 'N/A'}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button onclick="deleteAllocation('${allocation.id}')" class="delete-btn" ${isAdminMode ? '' : 'disabled'}>
+                                Delete
+                            </button>
+                        </td>
+                    `;
+                    allocationTableBody.appendChild(row);
+                });
+            }
+        }
+
+        /* --- Job Allocation Summary Function --- */
+        /**
+         * Renders a summary of members for the selected job, indicating if they received an item.
+         */
+        function renderJobAllocationSummary() {
+            jobAllocationSummaryDiv.innerHTML = '';
+            const selectedJob = filterJobSelect.value;
+
+            if (selectedJob === 'All') {
+                jobAllocationSummaryDiv.appendChild(jobSummaryMessage);
+                jobSummaryMessage.classList.remove('hidden');
+                return;
+            } else {
+                jobSummaryMessage.classList.add('hidden');
+            }
+
+            const membersOfSelectedJob = members.filter(member => member.job === selectedJob);
+
+            if (membersOfSelectedJob.length === 0) {
+                const noMembersFound = document.createElement('p');
+                noMembersFound.className = 'text-gray-400 text-center';
+                noMembersFound.textContent = `No members found for the '${selectedJob}' job.`;
+                jobAllocationSummaryDiv.appendChild(noMembersFound);
+                return;
+            }
+
+            let allReceived = true;
+            membersOfSelectedJob.forEach(member => {
+                const receivedItem = allocations.some(alloc =>
+                    alloc.recipientName === member.name && alloc.jobSpecification === member.job
+                );
+
+                const itemDiv = document.createElement('div');
+                itemDiv.className = `job-summary-item ${receivedItem ? 'received' : 'not-received'}`;
+                itemDiv.innerHTML = `
+                    <span class="font-bold">${member.name} (${member.job})</span>
+                    <span>${receivedItem ? 'Received Item' : 'Did Not Receive Item'}</span>
+                `;
+                jobAllocationSummaryDiv.appendChild(itemDiv);
+
+                if (!receivedItem) {
+                    allReceived = false;
+                }
+            });
+
+            // Add notification and reset button if all members received an item
+            if (allReceived) {
+                const completionMessage = document.createElement('p');
+                completionMessage.className = 'text-green-400 font-bold text-center mt-4';
+                completionMessage.textContent = `All members of ${selectedJob} have received an item!`;
+                jobAllocationSummaryDiv.appendChild(completionMessage);
+
+                const resetButton = document.createElement('button');
+                resetButton.className = 'px-4 py-2 bg-yellow-500 hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 rounded-md mt-2 text-white';
+                resetButton.textContent = `Reset ${selectedJob} Allocations`;
+                resetButton.onclick = () => resetJobAllocations(selectedJob);
+                resetButton.disabled = !isAdminMode; // Disable if not in admin mode
+                jobAllocationSummaryDiv.appendChild(resetButton);
+            }
+        }
+
+        /**
+         * Resets all allocations for a specific job.
+         * @param {string} jobToReset - The job specification to reset allocations for.
+         */
+        function resetJobAllocations(jobToReset) {
+            if (!isAdminMode) {
+                showMessageBox("Admin access required to reset allocations.", "error");
+                return;
+            }
+            const originalAllocationCount = allocations.length;
+            allocations = allocations.filter(alloc => alloc.jobSpecification !== jobToReset);
+            if (allocations.length < originalAllocationCount) {
+                saveAllocations();
+                renderAllocations();
+                renderJobAllocationSummary();
+                showMessageBox(`Allocations for ${jobToReset} have been reset!`, 'success');
+            } else {
+                showMessageBox(`No allocations found for ${jobToReset} to reset.`, 'error');
+            }
+        }
+
+
+        /* --- Event Listeners and Initial Load --- */
+
+        // Member Form Submission
+        memberForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            if (!isAdminMode) {
+                showMessageBox("Admin access required to add members.", "error");
+                return;
+            }
+            const memberName = memberNameInput.value.trim();
+            const memberJob = memberJobSelect.value;
+
+            if (!memberName || memberJob === "") {
+                showMessageBox('Please enter a member name and select a job.', 'error');
+                return;
+            }
+
+            if (members.some(m => m.name.toLowerCase() === memberName.toLowerCase())) {
+                showMessageBox(`Member '${memberName}' already exists!`, 'error');
+                return;
+            }
+
+            members.push({ name: memberName, job: memberJob });
+            saveMembers();
+            renderMembers();
+            memberForm.reset();
+            showMessageBox(`Member '${memberName}' added successfully!`, 'success');
+            renderJobAllocationSummary();
+        });
+
+        // Allocation Form Submission
+        allocationForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            if (!isAdminMode) {
+                showMessageBox("Admin access required to add allocations.", "error");
+                return;
+            }
+
+            const recipientName = recipientNameSelect.value;
+            const skillItemType = skillItemTypeSelect.value;
+            const itemRarity = itemRaritySelect.value;
+            const jobSpecification = jobSpecificationSelect.value;
+            const itemSpecification = itemSpecificationInput.value.trim();
+
+            const currentDate = new Date().toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+
+            if (!recipientName || !skillItemType || !itemRarity) {
+                showMessageBox('Please fill in all required fields (Recipient Name, Skill Item Type, Rarity).', 'error');
+                return;
+            }
+
+            if (jobSpecification === "" || jobSpecification === "Select Job" || jobSpecification === "Auto-filled from Recipient") {
+                showMessageBox('Please select a Recipient to auto-fill Job Specification.', 'error');
+                return;
+            }
+
+            const newAllocation = {
+                id: crypto.randomUUID(),
+                recipientName,
+                skillItemType,
+                itemRarity,
+                jobSpecification,
+                itemSpecification,
+                date: currentDate,
+                editedBy: currentAdminUser // Store the current admin user
+            };
+
+            allocations.push(newAllocation);
+            saveAllocations();
+            renderAllocations();
+            renderJobAllocationSummary();
+
+            allocationForm.reset();
+            jobSpecificationSelect.value = "";
+            jobSpecificationSelect.options[0].textContent = "Auto-filled from Recipient";
+            showMessageBox('Allocation added successfully!', 'success');
+        });
+
+        // Event listener for the filter dropdown
+        filterJobSelect.addEventListener('change', () => {
+            renderAllocations();
+            renderJobAllocationSummary();
+        });
+
+        // Initial load and render when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            loadMembers();
+            renderMembers();
+            loadAllocations();
+            renderAllocations();
+            renderJobAllocationSummary();
+
+            // Load current admin user from local storage
+            const storedAdminUser = localStorage.getItem(CURRENT_ADMIN_USER_KEY);
+            const storedAdminMode = localStorage.getItem(ADMIN_MODE_KEY);
+
+            if (storedAdminMode === 'true' && storedAdminUser && ADMIN_USERS[storedAdminUser]) {
+                toggleAdminControls(true, storedAdminUser);
+            } else {
+                toggleAdminControls(false, null);
+            }
+        });
+    </script>
+</body>
+</html>
