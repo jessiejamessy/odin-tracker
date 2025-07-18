@@ -386,16 +386,14 @@
         // Canvas environment variables (provided by Canvas runtime)
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         // Placeholder firebaseConfig for local testing if __firebase_config is not defined
-        const firebaseConfig = {
-          apiKey: "AIzaSyAmNXlCmupLYEF5JKQ2OBRawi2KoMtCO2c",
-          authDomain: "ondiauctiontracker.firebaseapp.com",
-          projectId: "ondiauctiontracker",
-          storageBucket: "ondiauctiontracker.firebasestorage.app",
-          messagingSenderId: "780329477866",
-          appId: "1:780329477866:web:7827a5b0ccf65b6f6c5993",
-          measurementId: "G-1W6X7WW3VS"
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "YOUR_API_KEY", // Replace with your actual API Key
+            authDomain: "YOUR_AUTH_DOMAIN", // Replace with your actual Auth Domain
+            projectId: "YOUR_PROJECT_ID", // Replace with your actual Project ID
+            storageBucket: "YOUR_STORAGE_BUCKET", // Replace with your actual Storage Bucket
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID", // Replace with your actual Messaging Sender ID
+            appId: "YOUR_APP_ID" // Replace with your actual App ID
         };
-
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         // Get references to elements
@@ -563,7 +561,8 @@
 
         /* --- Firebase Initialization and Auth --- */
         async function initializeFirebase() {
-            if (firebaseConfig && firebaseConfig.projectId && firebaseConfig.apiKey) { // Check for essential config
+            // Check if firebaseConfig is valid before initializing
+            if (firebaseConfig && firebaseConfig.projectId && firebaseConfig.apiKey) {
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
@@ -590,35 +589,46 @@
                         }
 
                     } else {
-                        userId = crypto.randomUUID(); // Fallback to random ID if no auth
-                        userIdDisplay.textContent = `User ID: ${userId} (Anonymous)`;
-                        userIdDisplay.style.display = 'block';
-                        showMessageBox("Signed in anonymously. Data will be private to this session.", "info");
+                        // Attempt to sign in anonymously if no user is found
+                        try {
+                            const anonUserCredential = await signInAnonymously(auth);
+                            userId = anonUserCredential.user.uid;
+                            userIdDisplay.textContent = `User ID: ${userId} (Anonymous)`;
+                            userIdDisplay.style.display = 'block';
+                            showMessageBox("Signed in anonymously. Data will be private to this session.", "info");
 
-                        // Load data for the anonymous user
-                        await loadMembers();
-                        renderMembers();
-                        setupAllocationsListener(); // Set up real-time listener for allocations
+                            await loadMembers();
+                            renderMembers();
+                            setupAllocationsListener();
 
-                        // Ensure controls are disabled for anonymous users
-                        toggleAdminControls(false, null);
+                            toggleAdminControls(false, null);
+                        } catch (error) {
+                            console.error("Error signing in anonymously:", error);
+                            showMessageBox("Failed to sign in anonymously. Data will not be saved or synced.", "error");
+                            userId = crypto.randomUUID(); // Fallback to a local random ID if anonymous sign-in fails
+                            userIdDisplay.textContent = `User ID: ${userId} (Local Only)`;
+                            userIdDisplay.style.display = 'block';
+                            toggleAdminControls(false, null); // Ensure controls are disabled if auth fails
+                        }
                     }
                 });
 
+                // This block handles the initial custom token sign-in if provided by the Canvas environment
                 if (initialAuthToken) {
                     try {
                         await signInWithCustomToken(auth, initialAuthToken);
                     } catch (error) {
                         console.error("Error signing in with custom token:", error);
-                        showMessageBox("Failed to sign in with custom token. Signing in anonymously.", "error");
+                        showMessageBox("Failed to sign in with custom token. Attempting anonymous sign-in.", "error");
+                        // Fallback to anonymous sign-in if custom token fails
                         await signInAnonymously(auth);
                     }
                 } else {
+                    // If no custom token, proceed with anonymous sign-in
                     await signInAnonymously(auth);
                 }
             } else {
                 showMessageBox("Firebase config not found or incomplete. Data will not be saved or synced.", "error");
-                // If Firebase is not configured, data will remain in-memory only (or use local storage if re-enabled)
             }
         }
 
@@ -631,7 +641,9 @@
         async function saveMembers() {
             if (!db || !userId) return;
             try {
-                const membersDocRef = doc(db, 'artifacts', appId, 'users', userId, 'members_data');
+                // Path: artifacts/{appId}/user_data/{userId}/members_document
+                // This path has 6 segments (collection/document/collection/document/collection/document)
+                const membersDocRef = doc(db, 'artifacts', appId, 'user_data', userId, 'members_document');
                 await setDoc(membersDocRef, { members: JSON.stringify(members) });
             } catch (e) {
                 console.error("Error saving members to Firestore:", e);
@@ -645,7 +657,9 @@
         async function loadMembers() {
             if (!db || !userId) return;
             try {
-                const membersDocRef = doc(db, 'artifacts', appId, 'users', userId, 'members_data');
+                // Path: artifacts/{appId}/user_data/{userId}/members_document
+                // This path has 6 segments (collection/document/collection/document/collection/document)
+                const membersDocRef = doc(db, 'artifacts', appId, 'user_data', userId, 'members_document');
                 const docSnap = await getDoc(membersDocRef);
                 if (docSnap.exists()) {
                     const data = docSnap.data();
@@ -757,7 +771,9 @@
         async function saveAllocationToFirestore(allocation) {
             if (!db || !userId) return;
             try {
-                const allocationDocRef = doc(db, 'artifacts', appId, 'users', userId, 'allocations', allocation.id);
+                // Path: artifacts/{appId}/user_data/{userId}/allocations_collection/{allocation.id}
+                // This path has 6 segments (collection/document/collection/document/collection/document)
+                const allocationDocRef = doc(db, 'artifacts', appId, 'user_data', userId, 'allocations_collection', allocation.id);
                 await setDoc(allocationDocRef, allocation);
             } catch (e) {
                 console.error("Error saving allocation to Firestore:", e);
@@ -772,7 +788,9 @@
         async function deleteAllocationFromFirestore(allocationId) {
             if (!db || !userId) return;
             try {
-                const allocationDocRef = doc(db, 'artifacts', appId, 'users', userId, 'allocations', allocationId);
+                // Path: artifacts/{appId}/user_data/{userId}/allocations_collection/{allocation.id}
+                // This path has 6 segments (collection/document/collection/document/collection/document)
+                const allocationDocRef = doc(db, 'artifacts', appId, 'user_data', userId, 'allocations_collection', allocationId);
                 await deleteDoc(allocationDocRef);
             } catch (e) {
                 console.error("Error deleting allocation from Firestore:", e);
@@ -785,7 +803,9 @@
          */
         function setupAllocationsListener() {
             if (!db || !userId) return;
-            const q = collection(db, 'artifacts', appId, 'users', userId, 'allocations');
+            // Path: artifacts/{appId}/user_data/{userId}/allocations_collection
+            // This path has 6 segments (collection/document/collection/document/collection)
+            const q = collection(db, 'artifacts', appId, 'user_data', userId, 'allocations_collection');
             onSnapshot(q, (snapshot) => {
                 const newAllocations = [];
                 snapshot.forEach((doc) => {
