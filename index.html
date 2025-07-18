@@ -131,6 +131,8 @@
                 Admin Logout
             </button>
             <p id="loggedInUserDisplay" class="text-sm text-green-400 mt-2" style="display:none;"></p>
+            <p id="userIdDisplay" class="text-xs text-gray-400 mt-1" style="display:none;"></p>
+
 
             <!-- Admin Password Input -->
             <div id="adminPasswordContainer" class="flex flex-col items-center">
@@ -345,7 +347,23 @@
     <!-- Message Box for notifications -->
     <div id="messageBox" class="message-box"></div>
 
-    <script>
+    <script type="module">
+        // Firebase imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, query, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase variables (will be initialized after auth)
+        let app;
+        let db;
+        let auth;
+        let userId = 'anonymous'; // Default userId
+
+        // Canvas environment variables (provided by Canvas runtime)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
         // Get references to elements
         const allocationForm = document.getElementById('allocationForm');
         const recipientNameSelect = document.getElementById('recipientName');
@@ -372,26 +390,26 @@
         const adminLoginBtn = document.getElementById('adminLoginBtn');
         const adminLogoutBtn = document.getElementById('adminLogoutBtn');
         const adminPasswordContainer = document.getElementById('adminPasswordContainer');
-        const adminUsernameInput = document.getElementById('adminUsernameInput'); // New: Username input
+        const adminUsernameInput = document.getElementById('adminUsernameInput');
         const adminPasswordInput = document.getElementById('adminPasswordInput');
         const submitAdminPasswordBtn = document.getElementById('submitAdminPasswordBtn');
-        const loggedInUserDisplay = document.getElementById('loggedInUserDisplay'); // New: Display for logged-in user
+        const loggedInUserDisplay = document.getElementById('loggedInUserDisplay');
+        const userIdDisplay = document.getElementById('userIdDisplay');
+
 
         // Job Allocation Summary Elements
         const jobAllocationSummaryDiv = document.getElementById('jobAllocationSummary');
         const jobSummaryMessage = document.getElementById('jobSummaryMessage');
 
-        // Local Storage Keys
-        const ALLOCATIONS_STORAGE_KEY = 'odinGuildAllocations';
-        const MEMBERS_STORAGE_KEY = 'odinGuildMembers';
+        // Local Storage Keys (still used for admin state, not for data)
         const ADMIN_MODE_KEY = 'odinAdminMode';
-        const CURRENT_ADMIN_USER_KEY = 'odinCurrentAdminUser'; // New: Key for current admin user
+        const CURRENT_ADMIN_USER_KEY = 'odinCurrentAdminUser';
 
-        // Data Arrays
+        // Data Arrays (will be synced with Firestore)
         let allocations = [];
         let members = [];
         let isAdminMode = false;
-        let currentAdminUser = null; // New: Stores the logged-in admin's username
+        let currentAdminUser = null;
 
         // Hardcoded admin users (NOT SECURE for production)
         const ADMIN_USERS = {
@@ -439,7 +457,7 @@
 
             // Update current admin user
             currentAdminUser = username;
-            localStorage.setItem(CURRENT_ADMIN_USER_KEY, username || ''); // Save username to local storage
+            localStorage.setItem(CURRENT_ADMIN_USER_KEY, username || '');
 
             // Display logged-in user
             if (currentAdminUser) {
@@ -452,7 +470,7 @@
             // Delete buttons in tables (need to re-render to apply disabled state)
             renderMembers();
             renderAllocations();
-            renderJobAllocationSummary(); // Also update job summary for reset button state
+            renderJobAllocationSummary();
 
             // Admin buttons visibility
             adminLoginBtn.style.display = enable ? 'none' : 'inline-block';
@@ -460,8 +478,8 @@
 
             // Hide password input container after successful login/logout
             adminPasswordContainer.style.display = 'none';
-            adminUsernameInput.value = ''; // Clear username field
-            adminPasswordInput.value = ''; // Clear password field
+            adminUsernameInput.value = '';
+            adminPasswordInput.value = '';
 
             // Save admin mode state
             localStorage.setItem(ADMIN_MODE_KEY, enable ? 'true' : 'false');
@@ -470,8 +488,8 @@
 
         /* --- Admin Login/Logout Handlers --- */
         adminLoginBtn.addEventListener('click', () => {
-            adminPasswordContainer.style.display = 'block'; // Show password input
-            adminUsernameInput.focus(); // Focus on the username input field
+            adminPasswordContainer.style.display = 'block';
+            adminUsernameInput.focus();
         });
 
         submitAdminPasswordBtn.addEventListener('click', () => {
@@ -487,37 +505,114 @@
         });
 
         adminLogoutBtn.addEventListener('click', () => {
-            toggleAdminControls(false, null); // Pass null for username when logging out
+            toggleAdminControls(false, null);
             showMessageBox("Admin mode deactivated.", "success");
         });
 
 
-        /* --- Member Management Functions --- */
+        /* --- Firebase Initialization and Auth --- */
+        async function initializeFirebase() {
+            if (firebaseConfig) {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        userIdDisplay.textContent = `User ID: ${userId}`;
+                        userIdDisplay.style.display = 'block';
+                        showMessageBox(`Logged in with user ID: ${userId}`, 'success');
+
+                        // Load data for the authenticated user
+                        await loadMembers();
+                        renderMembers();
+                        await loadAllocations();
+                        renderAllocations();
+                        renderJobAllocationSummary();
+
+                        // Re-apply admin mode state after data load
+                        const storedAdminMode = localStorage.getItem(ADMIN_MODE_KEY);
+                        const storedAdminUser = localStorage.getItem(CURRENT_ADMIN_USER_KEY);
+                        if (storedAdminMode === 'true' && storedAdminUser && ADMIN_USERS[storedAdminUser]) {
+                            toggleAdminControls(true, storedAdminUser);
+                        } else {
+                            toggleAdminControls(false, null);
+                        }
+
+                    } else {
+                        userId = crypto.randomUUID(); // Fallback to random ID if no auth
+                        userIdDisplay.textContent = `User ID: ${userId} (Anonymous)`;
+                        userIdDisplay.style.display = 'block';
+                        showMessageBox("Signed in anonymously. Data will be private to this session.", "info");
+
+                        // Load data for the anonymous user
+                        await loadMembers();
+                        renderMembers();
+                        await loadAllocations();
+                        renderAllocations();
+                        renderJobAllocationSummary();
+
+                        // Ensure controls are disabled for anonymous users
+                        toggleAdminControls(false, null);
+                    }
+                });
+
+                if (initialAuthToken) {
+                    try {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } catch (error) {
+                        console.error("Error signing in with custom token:", error);
+                        showMessageBox("Failed to sign in with custom token. Signing in anonymously.", "error");
+                        await signInAnonymously(auth);
+                    }
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } else {
+                showMessageBox("Firebase config not found. Data will not be saved or synced.", "error");
+                // If Firebase is not configured, data will remain in-memory only (or use local storage if re-enabled)
+                // For now, it will just not persist.
+            }
+        }
+
+
+        /* --- Member Management Functions (Firestore Integrated) --- */
 
         /**
-         * Saves the current members array to localStorage.
+         * Saves the current members array to Firestore.
          */
-        function saveMembers() {
+        async function saveMembers() {
+            if (!db || !userId) return;
             try {
-                localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(members));
+                // Using a single document to store all members for simplicity
+                const membersDocRef = doc(db, `artifacts/${appId}/users/${userId}/data/members_data`);
+                await setDoc(membersDocRef, { members: JSON.stringify(members) });
             } catch (e) {
-                console.error("Error saving members to localStorage:", e);
-                showMessageBox("Error saving member data. Please check browser storage settings.", "error");
+                console.error("Error saving members to Firestore:", e);
+                showMessageBox("Error saving member data to cloud. Please try again.", "error");
             }
         }
 
         /**
-         * Loads members from localStorage.
+         * Loads members from Firestore.
          */
-        function loadMembers() {
+        async function loadMembers() {
+            if (!db || !userId) return;
             try {
-                const storedMembers = localStorage.getItem(MEMBERS_STORAGE_KEY);
-                if (storedMembers) {
-                    members = JSON.parse(storedMembers);
+                const membersDocRef = doc(db, `artifacts/${appId}/users/${userId}/data/members_data`);
+                const docSnap = await getDoc(membersDocRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.members) {
+                        members = JSON.parse(data.members);
+                    }
+                } else {
+                    members = []; // No members data found
                 }
             } catch (e) {
-                console.error("Error loading members from localStorage:", e);
-                showMessageBox("Error loading saved member data. Starting with a fresh member list.", "error");
+                console.error("Error loading members from Firestore:", e);
+                showMessageBox("Error loading member data from cloud. Starting with a fresh list.", "error");
                 members = [];
             }
         }
@@ -541,7 +636,7 @@
                             ${member.job}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button onclick="deleteMember(${index})" class="delete-btn" ${isAdminMode ? '' : 'disabled'}>
+                            <button onclick="deleteMemberFromUI(${index})" class="delete-btn" ${isAdminMode ? '' : 'disabled'}>
                                 Delete
                             </button>
                         </td>
@@ -553,25 +648,31 @@
         }
 
         /**
-         * Deletes a member from the array and re-renders the member table.
+         * Deletes a member from the array and Firestore, then re-renders.
+         * This function is called from the UI.
          * @param {number} index - The index of the member to delete.
          */
-        function deleteMember(index) {
+        async function deleteMemberFromUI(index) {
             if (!isAdminMode) {
                 showMessageBox("Admin access required to delete members.", "error");
                 return;
             }
             if (index > -1 && index < members.length) {
                 const deletedMemberName = members[index].name;
-                members.splice(index, 1);
-                saveMembers();
-                renderMembers();
+                members.splice(index, 1); // Remove from local array
+                await saveMembers(); // Save updated array to Firestore
+                renderMembers(); // Re-render member table
                 showMessageBox(`Member '${deletedMemberName}' deleted successfully!`, 'success');
 
+                // Also remove any allocations associated with this deleted member from Firestore
+                const allocationsToDelete = allocations.filter(alloc => alloc.recipientName === deletedMemberName);
+                for (const alloc of allocationsToDelete) {
+                    await deleteAllocationFromFirestore(alloc.id); // Delete from Firestore
+                }
+                // Update local allocations array after Firestore deletions
                 allocations = allocations.filter(alloc => alloc.recipientName !== deletedMemberName);
-                saveAllocations();
-                renderAllocations();
-                renderJobAllocationSummary();
+                renderAllocations(); // Re-render allocations table
+                renderJobAllocationSummary(); // Update job summary
             }
         }
 
@@ -606,55 +707,71 @@
         });
 
 
-        /* --- Allocation Management Functions (Modified) --- */
+        /* --- Allocation Management Functions (Firestore Integrated) --- */
 
         /**
-         * Saves the current allocations array to localStorage.
+         * Saves an allocation to Firestore.
+         * This is called when adding a new allocation.
          */
-        function saveAllocations() {
+        async function saveAllocationToFirestore(allocation) {
+            if (!db || !userId) return;
             try {
-                localStorage.setItem(ALLOCATIONS_STORAGE_KEY, JSON.stringify(allocations));
+                const allocationDocRef = doc(db, `artifacts/${appId}/users/${userId}/data/allocations/${allocation.id}`);
+                await setDoc(allocationDocRef, allocation);
             } catch (e) {
-                console.error("Error saving allocations to localStorage:", e);
-                showMessageBox("Error saving allocation data. Please check browser storage settings.", "error");
+                console.error("Error saving allocation to Firestore:", e);
+                showMessageBox("Error saving allocation to cloud. Please try again.", "error");
             }
         }
 
         /**
-         * Loads allocations from localStorage.
+         * Deletes an allocation from Firestore.
+         * This is called by deleteAllocationFromUI or deleteMemberFromUI.
          */
-        function loadAllocations() {
+        async function deleteAllocationFromFirestore(allocationId) {
+            if (!db || !userId) return;
             try {
-                const storedAllocations = localStorage.getItem(ALLOCATIONS_STORAGE_KEY);
-                if (storedAllocations) {
-                    allocations = JSON.parse(storedAllocations);
-                }
+                const allocationDocRef = doc(db, `artifacts/${appId}/users/${userId}/data/allocations/${allocationId}`);
+                await deleteDoc(allocationDocRef);
             } catch (e) {
-                console.error("Error loading allocations from localStorage:", e);
-                showMessageBox("Error loading saved allocation data. Starting with a fresh list.", "error");
-                allocations = [];
+                console.error("Error deleting allocation from Firestore:", e);
+                showMessageBox("Error deleting allocation from cloud. Please try again.", "error");
             }
         }
 
         /**
-         * Deletes an allocation from the array and re-renders the table.
+         * Loads allocations from Firestore using a real-time listener.
+         */
+        function setupAllocationsListener() {
+            if (!db || !userId) return;
+            const q = collection(db, `artifacts/${appId}/users/${userId}/data/allocations`);
+            onSnapshot(q, (snapshot) => {
+                const newAllocations = [];
+                snapshot.forEach((doc) => {
+                    newAllocations.push(doc.data());
+                });
+                allocations = newAllocations;
+                renderAllocations();
+                renderJobAllocationSummary();
+            }, (error) => {
+                console.error("Error listening to allocations:", error);
+                showMessageBox("Error loading real-time allocations. Please refresh.", "error");
+            });
+        }
+
+        /**
+         * Deletes an allocation from the array and Firestore, then re-renders.
+         * This function is called from the UI.
          * @param {string} idToDelete - The unique ID of the allocation to delete.
          */
-        function deleteAllocation(idToDelete) {
+        async function deleteAllocationFromUI(idToDelete) {
             if (!isAdminMode) {
                 showMessageBox("Admin access required to delete allocations.", "error");
                 return;
             }
-            const initialLength = allocations.length;
-            allocations = allocations.filter(alloc => alloc.id !== idToDelete);
-            if (allocations.length < initialLength) {
-                saveAllocations();
-                renderAllocations();
-                renderJobAllocationSummary();
-                showMessageBox('Allocation deleted successfully!', 'success');
-            } else {
-                showMessageBox('Allocation not found.', 'error');
-            }
+            await deleteAllocationFromFirestore(idToDelete);
+            // The onSnapshot listener will automatically re-render after deletion from Firestore
+            showMessageBox('Allocation deleted successfully!', 'success');
         }
 
         /**
@@ -702,7 +819,7 @@
                             ${allocation.editedBy || 'N/A'}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button onclick="deleteAllocation('${allocation.id}')" class="delete-btn" ${isAdminMode ? '' : 'disabled'}>
+                            <button onclick="deleteAllocationFromUI('${allocation.id}')" class="delete-btn" ${isAdminMode ? '' : 'disabled'}>
                                 Delete
                             </button>
                         </td>
@@ -768,7 +885,7 @@
                 resetButton.className = 'px-4 py-2 bg-yellow-500 hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 rounded-md mt-2 text-white';
                 resetButton.textContent = `Reset ${selectedJob} Allocations`;
                 resetButton.onclick = () => resetJobAllocations(selectedJob);
-                resetButton.disabled = !isAdminMode; // Disable if not in admin mode
+                resetButton.disabled = !isAdminMode;
                 jobAllocationSummaryDiv.appendChild(resetButton);
             }
         }
@@ -777,17 +894,17 @@
          * Resets all allocations for a specific job.
          * @param {string} jobToReset - The job specification to reset allocations for.
          */
-        function resetJobAllocations(jobToReset) {
+        async function resetJobAllocations(jobToReset) {
             if (!isAdminMode) {
                 showMessageBox("Admin access required to reset allocations.", "error");
                 return;
             }
-            const originalAllocationCount = allocations.length;
-            allocations = allocations.filter(alloc => alloc.jobSpecification !== jobToReset);
-            if (allocations.length < originalAllocationCount) {
-                saveAllocations();
-                renderAllocations();
-                renderJobAllocationSummary();
+            const allocationsToReset = allocations.filter(alloc => alloc.jobSpecification === jobToReset);
+            if (allocationsToReset.length > 0) {
+                for (const alloc of allocationsToReset) {
+                    await deleteAllocationFromFirestore(alloc.id);
+                }
+                // The onSnapshot listener will automatically update `allocations` and re-render
                 showMessageBox(`Allocations for ${jobToReset} have been reset!`, 'success');
             } else {
                 showMessageBox(`No allocations found for ${jobToReset} to reset.`, 'error');
@@ -798,7 +915,7 @@
         /* --- Event Listeners and Initial Load --- */
 
         // Member Form Submission
-        memberForm.addEventListener('submit', (event) => {
+        memberForm.addEventListener('submit', async (event) => {
             event.preventDefault();
             if (!isAdminMode) {
                 showMessageBox("Admin access required to add members.", "error");
@@ -818,7 +935,7 @@
             }
 
             members.push({ name: memberName, job: memberJob });
-            saveMembers();
+            await saveMembers(); // Save to Firestore
             renderMembers();
             memberForm.reset();
             showMessageBox(`Member '${memberName}' added successfully!`, 'success');
@@ -826,7 +943,7 @@
         });
 
         // Allocation Form Submission
-        allocationForm.addEventListener('submit', (event) => {
+        allocationForm.addEventListener('submit', async (event) => {
             event.preventDefault();
             if (!isAdminMode) {
                 showMessageBox("Admin access required to add allocations.", "error");
@@ -863,13 +980,11 @@
                 jobSpecification,
                 itemSpecification,
                 date: currentDate,
-                editedBy: currentAdminUser // Store the current admin user
+                editedBy: currentAdminUser
             };
 
-            allocations.push(newAllocation);
-            saveAllocations();
-            renderAllocations();
-            renderJobAllocationSummary();
+            await saveAllocationToFirestore(newAllocation); // Save to Firestore
+            // The onSnapshot listener will handle updating the local 'allocations' array and re-rendering
 
             allocationForm.reset();
             jobSpecificationSelect.value = "";
@@ -884,22 +999,10 @@
         });
 
         // Initial load and render when the page loads
-        document.addEventListener('DOMContentLoaded', () => {
-            loadMembers();
-            renderMembers();
-            loadAllocations();
-            renderAllocations();
-            renderJobAllocationSummary();
-
-            // Load current admin user from local storage
-            const storedAdminUser = localStorage.getItem(CURRENT_ADMIN_USER_KEY);
-            const storedAdminMode = localStorage.getItem(ADMIN_MODE_KEY);
-
-            if (storedAdminMode === 'true' && storedAdminUser && ADMIN_USERS[storedAdminUser]) {
-                toggleAdminControls(true, storedAdminUser);
-            } else {
-                toggleAdminControls(false, null);
-            }
+        document.addEventListener('DOMContentLoaded', async () => {
+            await initializeFirebase();
+            // Data loading and rendering is now handled within initializeFirebase and its onAuthStateChanged listener
+            // setupAllocationsListener is also called there.
         });
     </script>
 </body>
