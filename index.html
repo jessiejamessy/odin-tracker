@@ -162,14 +162,22 @@
                     <select id="memberJob" name="memberJob" required disabled
                             class="mt-1 block w-full rounded-md shadow-sm">
                         <option value="">Select Job</option>
-                        <option value="Assassin">Assassin</option>
-                        <option value="Sniper">Sniper</option>
-                        <option value="Paladin">Paladin</option>
-                        <option value="Priest">Priest</option>
-                        <option value="Dark Wiz">Dark Wiz</option>
-                        <option value="Archmage">Archmage</option>
-                        <option value="Defender">Defender</option>
-                        <option value="Berserker">Berserker</option>
+                        <optgroup label="Priest">
+                            <option value="Saint">Saint</option>
+                            <option value="Paladin">Paladin</option>
+                        </optgroup>
+                        <optgroup label="Warrior">
+                            <option value="Berserker">Berserker</option>
+                            <option value="Defender">Defender</option>
+                        </optgroup>
+                        <optgroup label="Rogue">
+                            <option value="Sniper">Sniper</option>
+                            <option value="Assassin">Assassin</option>
+                        </optgroup>
+                        <optgroup label="Mage">
+                            <option value="Archmage">Archmage</option>
+                            <option value="Dark Wizard">Dark Wizard</option>
+                        </optgroup>
                         <option value="Other">Other</option>
                     </select>
                 </div>
@@ -248,14 +256,22 @@
                     <select id="jobSpecification" name="jobSpecification" required disabled
                             class="mt-1 block w-full rounded-md shadow-sm bg-gray-600 cursor-not-allowed">
                         <option value="">Auto-filled from Recipient</option>
-                        <option value="Assassin">Assassin</option>
-                        <option value="Sniper">Sniper</option>
-                        <option value="Paladin">Paladin</option>
-                        <option value="Priest">Priest</option>
-                        <option value="Dark Wiz">Dark Wiz</option>
-                        <option value="Archmage">Archmage</option>
-                        <option value="Defender">Defender</option>
-                        <option value="Berserker">Berserker</option>
+                        <optgroup label="Priest">
+                            <option value="Saint">Saint</option>
+                            <option value="Paladin">Paladin</option>
+                        </optgroup>
+                        <optgroup label="Warrior">
+                            <option value="Berserker">Berserker</option>
+                            <option value="Defender">Defender</option>
+                        </optgroup>
+                        <optgroup label="Rogue">
+                            <option value="Sniper">Sniper</option>
+                            <option value="Assassin">Assassin</option>
+                        </optgroup>
+                        <optgroup label="Mage">
+                            <option value="Archmage">Archmage</option>
+                            <option value="Dark Wizard">Dark Wizard</option>
+                        </optgroup>
                         <option value="Other">Other</option>
                     </select>
                 </div>
@@ -284,14 +300,22 @@
                 <label for="filterJob" class="block text-sm font-medium text-gray-300 mb-1">Filter by Job:</label>
                 <select id="filterJob" class="mt-1 block w-full md:w-1/3 rounded-md shadow-sm">
                     <option value="All">All Jobs</option>
-                    <option value="Assassin">Assassin</option>
-                    <option value="Sniper">Sniper</option>
-                    <option value="Paladin">Paladin</option>
-                    <option value="Priest">Priest</option>
-                    <option value="Dark Wiz">Dark Wiz</option>
-                    <option value="Archmage">Archmage</option>
-                    <option value="Defender">Defender</option>
-                    <option value="Berserker">Berserker</option>
+                    <optgroup label="Priest">
+                        <option value="Saint">Saint</option>
+                        <option value="Paladin">Paladin</option>
+                    </optgroup>
+                    <optgroup label="Warrior">
+                        <option value="Berserker">Berserker</option>
+                        <option value="Defender">Defender</option>
+                    </optgroup>
+                    <optgroup label="Rogue">
+                        <option value="Sniper">Sniper</option>
+                        <option value="Assassin">Assassin</option>
+                    </optgroup>
+                    <optgroup label="Mage">
+                        <option value="Archmage">Archmage</option>
+                        <option value="Dark Wizard">Dark Wizard</option>
+                    </optgroup>
                     <option value="Other">Other</option>
                 </select>
             </div>
@@ -351,7 +375,7 @@
         // Firebase imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, deleteDoc, query, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, query, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // Added getDoc here
 
         // Firebase variables (will be initialized after auth)
         let app;
@@ -417,6 +441,23 @@
             'Moon': 'admin123',
             'Sada': 'admin123'
         };
+
+        // Define the job class hierarchy
+        const JOB_CLASSES = {
+            "Priest": ["Saint", "Paladin"],
+            "Warrior": ["Berserker", "Defender"],
+            "Rogue": ["Sniper", "Assassin"],
+            "Mage": ["Archmage", "Dark Wizard"]
+        };
+
+        /**
+         * Helper function to get all subclasses for a given main class.
+         * @param {string} mainClass - The main job class (e.g., "Priest").
+         * @returns {string[]} An array of subclasses, or an empty array if not found.
+         */
+        function getSubclassesForMainClass(mainClass) {
+            return JOB_CLASSES[mainClass] || [];
+        }
 
         /**
          * Displays a message box with a given message and type (success/error).
@@ -527,9 +568,7 @@
                         // Load data for the authenticated user
                         await loadMembers();
                         renderMembers();
-                        await loadAllocations();
-                        renderAllocations();
-                        renderJobAllocationSummary();
+                        setupAllocationsListener(); // Set up real-time listener for allocations
 
                         // Re-apply admin mode state after data load
                         const storedAdminMode = localStorage.getItem(ADMIN_MODE_KEY);
@@ -549,9 +588,7 @@
                         // Load data for the anonymous user
                         await loadMembers();
                         renderMembers();
-                        await loadAllocations();
-                        renderAllocations();
-                        renderJobAllocationSummary();
+                        setupAllocationsListener(); // Set up real-time listener for allocations
 
                         // Ensure controls are disabled for anonymous users
                         toggleAdminControls(false, null);
@@ -571,8 +608,6 @@
                 }
             } else {
                 showMessageBox("Firebase config not found. Data will not be saved or synced.", "error");
-                // If Firebase is not configured, data will remain in-memory only (or use local storage if re-enabled)
-                // For now, it will just not persist.
             }
         }
 
@@ -585,8 +620,7 @@
         async function saveMembers() {
             if (!db || !userId) return;
             try {
-                // Using a single document to store all members for simplicity
-                const membersDocRef = doc(db, `artifacts/${appId}/users/${userId}/data/members_data`);
+                const membersDocRef = doc(db, 'artifacts', appId, 'users', userId, 'members_data'); // Corrected path segments
                 await setDoc(membersDocRef, { members: JSON.stringify(members) });
             } catch (e) {
                 console.error("Error saving members to Firestore:", e);
@@ -600,7 +634,7 @@
         async function loadMembers() {
             if (!db || !userId) return;
             try {
-                const membersDocRef = doc(db, `artifacts/${appId}/users/${userId}/data/members_data`);
+                const membersDocRef = doc(db, 'artifacts', appId, 'users', userId, 'members_data'); // Corrected path segments
                 const docSnap = await getDoc(membersDocRef);
                 if (docSnap.exists()) {
                     const data = docSnap.data();
@@ -608,7 +642,7 @@
                         members = JSON.parse(data.members);
                     }
                 } else {
-                    members = []; // No members data found
+                    members = [];
                 }
             } catch (e) {
                 console.error("Error loading members from Firestore:", e);
@@ -659,20 +693,16 @@
             }
             if (index > -1 && index < members.length) {
                 const deletedMemberName = members[index].name;
-                members.splice(index, 1); // Remove from local array
-                await saveMembers(); // Save updated array to Firestore
-                renderMembers(); // Re-render member table
+                members.splice(index, 1);
+                await saveMembers();
+                renderMembers();
                 showMessageBox(`Member '${deletedMemberName}' deleted successfully!`, 'success');
 
-                // Also remove any allocations associated with this deleted member from Firestore
                 const allocationsToDelete = allocations.filter(alloc => alloc.recipientName === deletedMemberName);
                 for (const alloc of allocationsToDelete) {
-                    await deleteAllocationFromFirestore(alloc.id); // Delete from Firestore
+                    await deleteAllocationFromFirestore(alloc.id);
                 }
-                // Update local allocations array after Firestore deletions
-                allocations = allocations.filter(alloc => alloc.recipientName !== deletedMemberName);
-                renderAllocations(); // Re-render allocations table
-                renderJobAllocationSummary(); // Update job summary
+                renderJobAllocationSummary();
             }
         }
 
@@ -716,7 +746,7 @@
         async function saveAllocationToFirestore(allocation) {
             if (!db || !userId) return;
             try {
-                const allocationDocRef = doc(db, `artifacts/${appId}/users/${userId}/data/allocations/${allocation.id}`);
+                const allocationDocRef = doc(db, 'artifacts', appId, 'users', userId, 'allocations', allocation.id); // Corrected path segments
                 await setDoc(allocationDocRef, allocation);
             } catch (e) {
                 console.error("Error saving allocation to Firestore:", e);
@@ -731,7 +761,7 @@
         async function deleteAllocationFromFirestore(allocationId) {
             if (!db || !userId) return;
             try {
-                const allocationDocRef = doc(db, `artifacts/${appId}/users/${userId}/data/allocations/${allocationId}`);
+                const allocationDocRef = doc(db, 'artifacts', appId, 'users', userId, 'allocations', allocationId); // Corrected path segments
                 await deleteDoc(allocationDocRef);
             } catch (e) {
                 console.error("Error deleting allocation from Firestore:", e);
@@ -744,7 +774,7 @@
          */
         function setupAllocationsListener() {
             if (!db || !userId) return;
-            const q = collection(db, `artifacts/${appId}/users/${userId}/data/allocations`);
+            const q = collection(db, 'artifacts', appId, 'users', userId, 'allocations'); // Corrected path segments
             onSnapshot(q, (snapshot) => {
                 const newAllocations = [];
                 snapshot.forEach((doc) => {
@@ -770,7 +800,6 @@
                 return;
             }
             await deleteAllocationFromFirestore(idToDelete);
-            // The onSnapshot listener will automatically re-render after deletion from Firestore
             showMessageBox('Allocation deleted successfully!', 'success');
         }
 
@@ -781,8 +810,20 @@
             allocationTableBody.innerHTML = '';
             const selectedJob = filterJobSelect.value;
 
+            let jobsToFilter = [];
+            if (selectedJob === 'All') {
+                jobsToFilter = null;
+            } else if (JOB_CLASSES.hasOwnProperty(selectedJob)) {
+                jobsToFilter = JOB_CLASSES[selectedJob];
+            } else {
+                jobsToFilter = [selectedJob];
+            }
+
             const filteredAllocations = allocations.filter(allocation => {
-                return selectedJob === 'All' || allocation.jobSpecification === selectedJob;
+                if (jobsToFilter === null) {
+                    return true;
+                }
+                return jobsToFilter.includes(allocation.jobSpecification);
             });
 
             if (filteredAllocations.length === 0) {
@@ -845,7 +886,14 @@
                 jobSummaryMessage.classList.add('hidden');
             }
 
-            const membersOfSelectedJob = members.filter(member => member.job === selectedJob);
+            let jobsToIncludeInSummary = [];
+            if (JOB_CLASSES.hasOwnProperty(selectedJob)) {
+                jobsToIncludeInSummary = JOB_CLASSES[selectedJob];
+            } else {
+                jobsToIncludeInSummary = [selectedJob];
+            }
+
+            const membersOfSelectedJob = members.filter(member => jobsToIncludeInSummary.includes(member.job));
 
             if (membersOfSelectedJob.length === 0) {
                 const noMembersFound = document.createElement('p');
@@ -858,7 +906,7 @@
             let allReceived = true;
             membersOfSelectedJob.forEach(member => {
                 const receivedItem = allocations.some(alloc =>
-                    alloc.recipientName === member.name && alloc.jobSpecification === member.job
+                    alloc.recipientName === member.name && jobsToIncludeInSummary.includes(alloc.jobSpecification)
                 );
 
                 const itemDiv = document.createElement('div');
@@ -874,7 +922,6 @@
                 }
             });
 
-            // Add notification and reset button if all members received an item
             if (allReceived) {
                 const completionMessage = document.createElement('p');
                 completionMessage.className = 'text-green-400 font-bold text-center mt-4';
@@ -892,19 +939,26 @@
 
         /**
          * Resets all allocations for a specific job.
-         * @param {string} jobToReset - The job specification to reset allocations for.
+         * @param {string} jobToReset - The job specification (main class or subclass) to reset allocations for.
          */
         async function resetJobAllocations(jobToReset) {
             if (!isAdminMode) {
                 showMessageBox("Admin access required to reset allocations.", "error");
                 return;
             }
-            const allocationsToReset = allocations.filter(alloc => alloc.jobSpecification === jobToReset);
+
+            let jobsToClear = [];
+            if (JOB_CLASSES.hasOwnProperty(jobToReset)) {
+                jobsToClear = JOB_CLASSES[jobToReset];
+            } else {
+                jobsToClear = [jobToReset];
+            }
+
+            const allocationsToReset = allocations.filter(alloc => jobsToClear.includes(alloc.jobSpecification));
             if (allocationsToReset.length > 0) {
                 for (const alloc of allocationsToReset) {
                     await deleteAllocationFromFirestore(alloc.id);
                 }
-                // The onSnapshot listener will automatically update `allocations` and re-render
                 showMessageBox(`Allocations for ${jobToReset} have been reset!`, 'success');
             } else {
                 showMessageBox(`No allocations found for ${jobToReset} to reset.`, 'error');
@@ -935,7 +989,7 @@
             }
 
             members.push({ name: memberName, job: memberJob });
-            await saveMembers(); // Save to Firestore
+            await saveMembers();
             renderMembers();
             memberForm.reset();
             showMessageBox(`Member '${memberName}' added successfully!`, 'success');
@@ -983,8 +1037,7 @@
                 editedBy: currentAdminUser
             };
 
-            await saveAllocationToFirestore(newAllocation); // Save to Firestore
-            // The onSnapshot listener will handle updating the local 'allocations' array and re-rendering
+            await saveAllocationToFirestore(newAllocation);
 
             allocationForm.reset();
             jobSpecificationSelect.value = "";
@@ -1001,8 +1054,6 @@
         // Initial load and render when the page loads
         document.addEventListener('DOMContentLoaded', async () => {
             await initializeFirebase();
-            // Data loading and rendering is now handled within initializeFirebase and its onAuthStateChanged listener
-            // setupAllocationsListener is also called there.
         });
     </script>
 </body>
