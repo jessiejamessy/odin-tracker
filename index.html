@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Odin Valhalla Guild Auction Tracker</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Custom styles for Inter font and general body styling */
@@ -115,7 +114,6 @@
             Odin Valhalla Guild Auction Allocation Tracker
         </h1>
 
-        <!-- Admin Controls -->
         <div class="mb-8 p-6 bg-gray-700 rounded-lg shadow-md text-center">
             <h2 class="text-2xl font-bold text-blue-300 mb-4">Admin Access</h2>
             <p class="text-sm text-gray-400 mb-4">
@@ -134,7 +132,6 @@
             <p id="userIdDisplay" class="text-xs text-gray-400 mt-1" style="display:none;"></p>
 
 
-            <!-- Admin Password Input -->
             <div id="adminPasswordContainer" class="flex flex-col items-center">
                 <input type="text" id="adminUsernameInput" placeholder="Enter username"
                        class="w-full max-w-xs mt-4 mb-2">
@@ -147,7 +144,6 @@
             </div>
         </div>
 
-        <!-- Member Management Section -->
         <div class="mb-8 p-6 bg-gray-700 rounded-lg shadow-md" id="memberManagementSection">
             <h2 class="text-2xl font-bold text-blue-300 mb-4">Manage Guild Members</h2>
             <form id="memberForm" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -205,8 +201,7 @@
                         </tr>
                     </thead>
                     <tbody id="memberTableBody" class="divide-y divide-gray-700">
-                        <!-- Member rows will be inserted here by JavaScript -->
-                    </tbody>
+                        </tbody>
                 </table>
                 <div id="noMembersMessage" class="text-center py-8 text-gray-400 text-lg hidden">
                     No members added yet. Add one above!
@@ -214,19 +209,16 @@
             </div>
         </div>
 
-        <!-- Form to Add New Allocation -->
         <div class="mb-8 p-6 bg-gray-700 rounded-lg shadow-md" id="allocationFormSection">
             <h2 class="text-2xl font-bold text-blue-300 mb-4">Add New Allocation</h2>
             <form id="allocationForm" class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                     <label for="recipientName" class="block text-sm font-medium text-gray-300 mb-1">Recipient Name</label>
                     <select id="recipientName" name="recipientName" required disabled
-                           class="mt-1 block w-full rounded-md shadow-sm">
+                            class="mt-1 block w-full rounded-md shadow-sm">
                         <option value="">Select Recipient</option>
-                        <!-- Options populated by JavaScript -->
-                    </select>
+                        </select>
                 </div>
-                <!-- Updated field for Skill Item Type -->
                 <div>
                     <label for="skillItemType" class="block text-sm font-medium text-gray-300 mb-1">Skill Item Type</label>
                     <select id="skillItemType" name="skillItemType" required disabled
@@ -237,7 +229,6 @@
                         <option value="Skill Manual">Skill Manual</option>
                     </select>
                 </div>
-                <!-- New field for Item Rarity -->
                 <div>
                     <label for="itemRarity" class="block text-sm font-medium text-gray-300 mb-1">Rarity</label>
                     <select id="itemRarity" name="itemRarity" required disabled
@@ -250,7 +241,6 @@
                         <option value="Legendary">Legendary</option>
                     </select>
                 </div>
-                <!-- Existing field for Job Specification (now auto-populated) -->
                 <div>
                     <label for="jobSpecification" class="block text-sm font-medium text-gray-300 mb-1">Job Specification</label>
                     <select id="jobSpecification" name="jobSpecification" required disabled
@@ -275,7 +265,6 @@
                         <option value="Other">Other</option>
                     </select>
                 </div>
-                <!-- Existing field for Item Specification -->
                 <div>
                     <label for="itemSpecification" class="block text-sm font-medium text-gray-300 mb-1">Item Specification</label>
                     <input type="text" id="itemSpecification" name="itemSpecification" disabled
@@ -291,11 +280,9 @@
             </form>
         </div>
 
-        <!-- Allocation List Table -->
         <div class="overflow-x-auto rounded-lg shadow-md">
             <h2 class="text-2xl font-bold text-blue-300 mb-4 px-6">Current Allocations</h2>
 
-            <!-- Filter by Job dropdown -->
             <div class="mb-4 px-6">
                 <label for="filterJob" class="block text-sm font-medium text-gray-300 mb-1">Filter by Job:</label>
                 <select id="filterJob" class="mt-1 block w-full md:w-1/3 rounded-md shadow-sm">
@@ -350,15 +337,13 @@
                     </tr>
                 </thead>
                 <tbody id="allocationTableBody" class="divide-y divide-gray-700">
-                    <!-- Allocation rows will be inserted here by JavaScript -->
-                </tbody>
+                    </tbody>
             </table>
             <div id="noAllocationsMessage" class="text-center py-8 text-gray-400 text-lg hidden">
                 No allocations added yet. Start by adding one above!
             </div>
         </div>
 
-        <!-- Job Allocation Summary Section -->
         <div class="mb-8 p-6 bg-gray-700 rounded-lg shadow-md mt-8">
             <h2 class="text-2xl font-bold text-blue-300 mb-4">Job Allocation Summary</h2>
             <div id="jobAllocationSummary" class="space-y-2">
@@ -368,14 +353,13 @@
 
     </div>
 
-    <!-- Message Box for notifications -->
     <div id="messageBox" class="message-box"></div>
 
     <script type="module">
         // Firebase imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, deleteDoc, query, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; 
+        import { getFirestore, collection, doc, setDoc, deleteDoc, query, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Firebase variables (will be initialized after auth)
         let app;
@@ -567,68 +551,56 @@
                 db = getFirestore(app);
                 auth = getAuth(app);
 
+                // This function loads data and sets up the UI
+                const loadDataAndSetupUI = async () => {
+                    await loadMembers();
+                    renderMembers();
+                    setupAllocationsListener(); // Set up real-time listener for allocations
+
+                    // Re-apply admin mode state after data load
+                    const storedAdminMode = localStorage.getItem(ADMIN_MODE_KEY);
+                    const storedAdminUser = localStorage.getItem(CURRENT_ADMIN_USER_KEY);
+                    if (storedAdminMode === 'true' && storedAdminUser && ADMIN_USERS[storedAdminUser]) {
+                        toggleAdminControls(true, storedAdminUser);
+                    } else {
+                        toggleAdminControls(false, null);
+                    }
+                };
+
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
                         userId = user.uid;
                         userIdDisplay.textContent = `User ID: ${userId}`;
                         userIdDisplay.style.display = 'block';
-                        showMessageBox(`Logged in with user ID: ${userId}`, 'success');
-
-                        // Load data for the authenticated user
-                        await loadMembers();
-                        renderMembers();
-                        setupAllocationsListener(); // Set up real-time listener for allocations
-
-                        // Re-apply admin mode state after data load
-                        const storedAdminMode = localStorage.getItem(ADMIN_MODE_KEY);
-                        const storedAdminUser = localStorage.getItem(CURRENT_ADMIN_USER_KEY);
-                        if (storedAdminMode === 'true' && storedAdminUser && ADMIN_USERS[storedAdminUser]) {
-                            toggleAdminControls(true, storedAdminUser);
-                        } else {
-                            toggleAdminControls(false, null);
-                        }
-
+                        await loadDataAndSetupUI();
                     } else {
-                        // Attempt to sign in anonymously if no user is found
+                        // If no user, try to sign in anonymously.
                         try {
-                            const anonUserCredential = await signInAnonymously(auth);
-                            userId = anonUserCredential.user.uid;
-                            userIdDisplay.textContent = `User ID: ${userId} (Anonymous)`;
-                            userIdDisplay.style.display = 'block';
-                            showMessageBox("Signed in anonymously. Data will be private to this session.", "info");
-
-                            await loadMembers();
-                            renderMembers();
-                            setupAllocationsListener();
-
-                            toggleAdminControls(false, null);
+                            const userCredential = await signInAnonymously(auth);
+                            // This will trigger the onAuthStateChanged listener again with the new user.
+                            // The code inside `if (user)` will then run.
+                            showMessageBox("Signed in anonymously.", "success");
                         } catch (error) {
-                            console.error("Error signing in anonymously:", error);
-                            showMessageBox("Failed to sign in anonymously. Data will not be saved or synced.", "error");
-                            userId = crypto.randomUUID(); // Fallback to a local random ID if anonymous sign-in fails
-                            userIdDisplay.textContent = `User ID: ${userId} (Local Only)`;
+                            console.error("Anonymous sign-in failed:", error);
+                            showMessageBox("Could not sign in. Data may not sync.", "error");
+                            
+                            // Fallback for when sign-in is blocked
+                            userId = localStorage.getItem('fallbackUserId');
+                            if (!userId) {
+                                userId = crypto.randomUUID();
+                                localStorage.setItem('fallbackUserId', userId);
+                            }
+                            userIdDisplay.textContent = `User ID: ${userId} (Offline Mode)`;
                             userIdDisplay.style.display = 'block';
-                            toggleAdminControls(false, null); // Ensure controls are disabled if auth fails
+                            
+                            // Attempt to load data even in offline/fallback mode
+                            await loadDataAndSetupUI();
                         }
                     }
                 });
 
-                // This block handles the initial custom token sign-in if provided by the Canvas environment
-                if (initialAuthToken) {
-                    try {
-                        await signInWithCustomToken(auth, initialAuthToken);
-                    } catch (error) {
-                        console.error("Error signing in with custom token:", error);
-                        showMessageBox("Failed to sign in with custom token. Attempting anonymous sign-in.", "error");
-                        // Fallback to anonymous sign-in if custom token fails
-                        await signInAnonymously(auth);
-                    }
-                } else {
-                    // If no custom token, proceed with anonymous sign-in
-                    await signInAnonymously(auth);
-                }
             } else {
-                showMessageBox("Firebase config not found or incomplete. Data will not be saved or synced.", "error");
+                showMessageBox("Firebase config not found. App cannot connect to the cloud.", "error");
             }
         }
 
@@ -641,8 +613,6 @@
         async function saveMembers() {
             if (!db || !userId) return;
             try {
-                // Path: artifacts/{appId}/user_data/{userId}/members_collection/members_document
-                // This path has 8 segments (collection/document/collection/document/collection/document/collection/document)
                 const membersDocRef = doc(db, 'artifacts', appId, 'user_data', userId, 'members_collection', 'members_document');
                 await setDoc(membersDocRef, { members: JSON.stringify(members) });
             } catch (e) {
@@ -657,8 +627,6 @@
         async function loadMembers() {
             if (!db || !userId) return;
             try {
-                // Path: artifacts/{appId}/user_data/{userId}/members_collection/members_document
-                // This path has 8 segments (collection/document/collection/document/collection/document/collection/document)
                 const membersDocRef = doc(db, 'artifacts', appId, 'user_data', userId, 'members_collection', 'members_document');
                 const docSnap = await getDoc(membersDocRef);
                 if (docSnap.exists()) {
@@ -771,8 +739,6 @@
         async function saveAllocationToFirestore(allocation) {
             if (!db || !userId) return;
             try {
-                // Path: artifacts/{appId}/user_data/{userId}/allocations_collection/{allocation.id}
-                // This path has 8 segments (collection/document/collection/document/collection/document/collection/document)
                 const allocationDocRef = doc(db, 'artifacts', appId, 'user_data', userId, 'allocations_collection', allocation.id);
                 await setDoc(allocationDocRef, allocation);
             } catch (e) {
@@ -788,8 +754,6 @@
         async function deleteAllocationFromFirestore(allocationId) {
             if (!db || !userId) return;
             try {
-                // Path: artifacts/{appId}/user_data/{userId}/allocations_collection/{allocation.id}
-                // This path has 8 segments (collection/document/collection/document/collection/document/collection/document)
                 const allocationDocRef = doc(db, 'artifacts', appId, 'user_data', userId, 'allocations_collection', allocationId);
                 await deleteDoc(allocationDocRef);
             } catch (e) {
@@ -803,8 +767,6 @@
          */
         function setupAllocationsListener() {
             if (!db || !userId) return;
-            // Path: artifacts/{appId}/user_data/{userId}/allocations_collection
-            // This path has 6 segments (collection/document/collection/document/collection/document/collection)
             const q = collection(db, 'artifacts', appId, 'user_data', userId, 'allocations_collection');
             onSnapshot(q, (snapshot) => {
                 const newAllocations = [];
@@ -998,6 +960,10 @@
 
 
         /* --- Event Listeners and Initial Load --- */
+
+        // MAKE THE DELETE FUNCTIONS GLOBALLY ACCESSIBLE FOR ONCLICK ATTRIBUTES
+        window.deleteMemberFromUI = deleteMemberFromUI;
+        window.deleteAllocationFromUI = deleteAllocationFromUI;
 
         // Member Form Submission
         memberForm.addEventListener('submit', async (event) => {
