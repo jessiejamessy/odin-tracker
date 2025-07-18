@@ -116,6 +116,10 @@
 
         <div class="mb-8 p-6 bg-gray-700 rounded-lg shadow-md text-center">
             <h2 class="text-2xl font-bold text-blue-300 mb-4">Admin Access</h2>
+            <p class="text-sm text-gray-400 mb-4">
+                Note: This is a client-side only admin feature and is NOT secure.
+                Anyone with browser developer tools can bypass this.
+            </p>
             <button id="adminLoginBtn"
                     class="px-6 py-3 bg-indigo-500 hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 rounded-lg">
                 Admin Login
@@ -354,15 +358,14 @@
     <script type="module">
         // Firebase imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, query, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Firebase variables (will be initialized after auth)
         let app;
         let db;
         let auth;
-        let userId = 'anonymous'; // Default userId
-
+        
         // Canvas environment variables (provided by Canvas runtime)
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         // Placeholder firebaseConfig for local testing if __firebase_config is not defined
@@ -374,8 +377,7 @@
             messagingSenderId: "780329477866", // Replace with your actual Messaging Sender ID
             appId: "1:780329477866:web:7827a5b0ccf65b6f6c5993" // Replace with your actual App ID
         };
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
+        
         // Get references to elements
         const allocationForm = document.getElementById('allocationForm');
         const recipientNameSelect = document.getElementById('recipientName');
@@ -541,19 +543,16 @@
 
         /* --- Firebase Initialization and Auth --- */
         async function initializeFirebase() {
-            // Check if firebaseConfig is valid before initializing
             if (firebaseConfig && firebaseConfig.projectId && firebaseConfig.apiKey) {
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
 
-                // This function loads data and sets up the UI
                 const loadDataAndSetupUI = async () => {
                     await loadMembers();
                     renderMembers();
-                    setupAllocationsListener(); // Set up real-time listener for allocations
+                    setupAllocationsListener(); 
 
-                    // Re-apply admin mode state after data load
                     const storedAdminMode = localStorage.getItem(ADMIN_MODE_KEY);
                     const storedAdminUser = localStorage.getItem(CURRENT_ADMIN_USER_KEY);
                     if (storedAdminMode === 'true' && storedAdminUser && ADMIN_USERS[storedAdminUser]) {
@@ -565,36 +564,21 @@
 
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
-                        userId = user.uid;
-                        userIdDisplay.textContent = `User ID: ${userId}`;
+                        userIdDisplay.textContent = `Status: Connected`;
                         userIdDisplay.style.display = 'block';
                         await loadDataAndSetupUI();
                     } else {
-                        // If no user, try to sign in anonymously.
                         try {
-                            const userCredential = await signInAnonymously(auth);
-                            // This will trigger the onAuthStateChanged listener again with the new user.
-                            // The code inside `if (user)` will then run.
-                            showMessageBox("Signed in anonymously.", "success");
+                            await signInAnonymously(auth);
                         } catch (error) {
                             console.error("Anonymous sign-in failed:", error);
-                            showMessageBox("Could not sign in. Data may not sync.", "error");
-                            
-                            // Fallback for when sign-in is blocked
-                            userId = localStorage.getItem('fallbackUserId');
-                            if (!userId) {
-                                userId = crypto.randomUUID();
-                                localStorage.setItem('fallbackUserId', userId);
-                            }
-                            userIdDisplay.textContent = `User ID: ${userId} (Offline Mode)`;
+                            showMessageBox("Could not connect to the cloud. Using local mode.", "error");
+                            userIdDisplay.textContent = `Status: Offline`;
                             userIdDisplay.style.display = 'block';
-                            
-                            // Attempt to load data even in offline/fallback mode
                             await loadDataAndSetupUI();
                         }
                     }
                 });
-
             } else {
                 showMessageBox("Firebase config not found. App cannot connect to the cloud.", "error");
             }
@@ -607,9 +591,10 @@
          * Saves the current members array to Firestore.
          */
         async function saveMembers() {
-            if (!db || !userId) return;
+            if (!db) return;
             try {
-                const membersDocRef = doc(db, 'artifacts', appId, 'user_data', userId, 'members_collection', 'members_document');
+                // Use a shared ID instead of the private userId
+                const membersDocRef = doc(db, 'artifacts', appId, 'user_data', 'odin_valhalla_guild', 'members_collection', 'members_document');
                 await setDoc(membersDocRef, { members: JSON.stringify(members) });
             } catch (e) {
                 console.error("Error saving members to Firestore:", e);
@@ -621,9 +606,10 @@
          * Loads members from Firestore.
          */
         async function loadMembers() {
-            if (!db || !userId) return;
+            if (!db) return;
             try {
-                const membersDocRef = doc(db, 'artifacts', appId, 'user_data', userId, 'members_collection', 'members_document');
+                // Use a shared ID instead of the private userId
+                const membersDocRef = doc(db, 'artifacts', appId, 'user_data', 'odin_valhalla_guild', 'members_collection', 'members_document');
                 const docSnap = await getDoc(membersDocRef);
                 if (docSnap.exists()) {
                     const data = docSnap.data();
@@ -730,12 +716,12 @@
 
         /**
          * Saves an allocation to Firestore.
-         * This is called when adding a new allocation.
          */
         async function saveAllocationToFirestore(allocation) {
-            if (!db || !userId) return;
+            if (!db) return;
             try {
-                const allocationDocRef = doc(db, 'artifacts', appId, 'user_data', userId, 'allocations_collection', allocation.id);
+                // Use a shared ID instead of the private userId
+                const allocationDocRef = doc(db, 'artifacts', appId, 'user_data', 'odin_valhalla_guild', 'allocations_collection', allocation.id);
                 await setDoc(allocationDocRef, allocation);
             } catch (e) {
                 console.error("Error saving allocation to Firestore:", e);
@@ -745,12 +731,12 @@
 
         /**
          * Deletes an allocation from Firestore.
-         * This is called by deleteAllocationFromUI or deleteMemberFromUI.
          */
         async function deleteAllocationFromFirestore(allocationId) {
-            if (!db || !userId) return;
+            if (!db) return;
             try {
-                const allocationDocRef = doc(db, 'artifacts', appId, 'user_data', userId, 'allocations_collection', allocationId);
+                // Use a shared ID instead of the private userId
+                const allocationDocRef = doc(db, 'artifacts', appId, 'user_data', 'odin_valhalla_guild', 'allocations_collection', allocationId);
                 await deleteDoc(allocationDocRef);
             } catch (e) {
                 console.error("Error deleting allocation from Firestore:", e);
@@ -762,8 +748,9 @@
          * Loads allocations from Firestore using a real-time listener.
          */
         function setupAllocationsListener() {
-            if (!db || !userId) return;
-            const q = collection(db, 'artifacts', appId, 'user_data', userId, 'allocations_collection');
+            if (!db) return;
+            // Use a shared ID instead of the private userId
+            const q = collection(db, 'artifacts', appId, 'user_data', 'odin_valhalla_guild', 'allocations_collection');
             onSnapshot(q, (snapshot) => {
                 const newAllocations = [];
                 snapshot.forEach((doc) => {
@@ -780,8 +767,6 @@
 
         /**
          * Deletes an allocation from the array and Firestore, then re-renders.
-         * This function is called from the UI.
-         * @param {string} idToDelete - The unique ID of the allocation to delete.
          */
         async function deleteAllocationFromUI(idToDelete) {
             if (!isAdminMode) {
@@ -911,7 +896,7 @@
                 }
             });
 
-            if (allReceived) {
+            if (allReceived && membersOfSelectedJob.length > 0) {
                 const completionMessage = document.createElement('p');
                 completionMessage.className = 'text-green-400 font-bold text-center mt-4';
                 completionMessage.textContent = `All members of ${selectedJob} have received an item!`;
@@ -928,7 +913,6 @@
 
         /**
          * Resets all allocations for a specific job.
-         * @param {string} jobToReset - The job specification (main class or subclass) to reset allocations for.
          */
         async function resetJobAllocations(jobToReset) {
             if (!isAdminMode) {
