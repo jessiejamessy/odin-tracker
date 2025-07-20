@@ -217,7 +217,8 @@
                 <table class="min-w-full divide-y divide-gray-700">
                     <thead class="bg-gray-700">
                         <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">#</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                                 Member Name
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
@@ -338,7 +339,8 @@
             <table class="min-w-full divide-y divide-gray-700">
                 <thead class="bg-gray-700">
                     <tr>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">
+                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">#</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                             Recipient
                         </th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
@@ -469,7 +471,6 @@
             "Mage": ["Archmage", "Dark Wizard"]
         };
 
-        // *** NEW: Color mapping for member jobs ***
         const jobColorClasses = {
             'Saint': 'text-slate-100',       // White
             'Paladin': 'text-yellow-200',    // Cream
@@ -648,7 +649,7 @@
             }
         }
         
-        // *** MODIFIED: renderMembers now applies colors based on job ***
+        // *** MODIFIED: renderMembers now applies colors and numbering ***
         function renderMembers() {
             const selectedJob = memberFilterJob.value;
             let filteredMembers = members;
@@ -670,11 +671,12 @@
                     : `No members found for job: ${selectedJob}`;
             } else {
                 noMembersMessage.classList.add('hidden');
-                filteredMembers.forEach((member) => {
+                filteredMembers.forEach((member, index) => {
                     const row = document.createElement('tr');
-                    const colorClass = jobColorClasses[member.job] || 'text-gray-300'; // Get color from mapping
+                    const colorClass = jobColorClasses[member.job] || 'text-gray-300';
 
                     row.innerHTML = `
+                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-400">${index + 1}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${colorClass}">${member.name}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-bold ${colorClass}">${member.job}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -762,6 +764,7 @@
             });
         }
         
+        // *** MODIFIED: renderAllocations now includes numbering ***
         function renderAllocations() {
             const rarityColorClasses = {
                 'Common': 'text-slate-200',
@@ -786,11 +789,12 @@
                     : 'No allocations added yet. Start by adding one above!';
             } else {
                 noAllocationsMessage.classList.add('hidden');
-                filteredAllocations.forEach((allocation) => {
+                filteredAllocations.forEach((allocation, index) => {
                     const row = document.createElement('tr');
                     const colorClass = rarityColorClasses[allocation.itemRarity] || 'text-gray-300';
                     
                     row.innerHTML = `
+                        <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-400">${index + 1}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${colorClass}">${allocation.recipientName}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm ${colorClass}">${allocation.skillItemType || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-bold ${colorClass}">${allocation.itemRarity || 'N/A'}</td>
