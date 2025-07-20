@@ -427,7 +427,7 @@
         const addMemberBtn = document.getElementById('addMemberBtn');
         const memberTableBody = document.getElementById('memberTableBody');
         const noMembersMessage = document.getElementById('noMembersMessage');
-        const memberFilterJob = document.getElementById('memberFilterJob'); // *** NEW: Get member filter dropdown
+        const memberFilterJob = document.getElementById('memberFilterJob');
 
         // Admin Control Elements
         const adminLoginBtn = document.getElementById('adminLoginBtn');
@@ -469,6 +469,19 @@
             "Mage": ["Archmage", "Dark Wizard"]
         };
 
+        // *** NEW: Color mapping for member jobs ***
+        const jobColorClasses = {
+            'Saint': 'text-slate-100',       // White
+            'Paladin': 'text-yellow-200',    // Cream
+            'Defender': 'text-blue-400',     // Blue
+            'Berserker': 'text-blue-600',    // Dark Blue
+            'Sniper': 'text-red-400',        // Red
+            'Assassin': 'text-red-600',      // Dark Red
+            'Archmage': 'text-purple-400',   // Purple
+            'Dark Wizard': 'text-purple-600' // Dark Purple
+        };
+
+
         /**
          * Displays a message box with a given message and type (success/error).
          * @param {string} message - The message to display.
@@ -494,7 +507,6 @@
          * @param {string|null} username - The username of the logged-in admin, or null if logging out.
          */
         function toggleAdminControls(enable, username = null) {
-            // *** BUG FIX: Set the admin mode status FIRST ***
             isAdminMode = enable;
             currentAdminUser = username;
 
@@ -570,7 +582,7 @@
 
                 const loadDataAndSetupUI = async () => {
                     await loadMembers();
-                    setupAllocationsListener(); // This will render allocations initially
+                    setupAllocationsListener(); 
 
                     const storedAdminMode = localStorage.getItem(ADMIN_MODE_KEY) === 'true';
                     const storedAdminUser = localStorage.getItem(CURRENT_ADMIN_USER_KEY);
@@ -635,17 +647,17 @@
                 members = [];
             }
         }
-
-        // *** MODIFIED: renderMembers now filters based on the new dropdown ***
+        
+        // *** MODIFIED: renderMembers now applies colors based on job ***
         function renderMembers() {
             const selectedJob = memberFilterJob.value;
             let filteredMembers = members;
 
             if (selectedJob !== 'All') {
-                if (JOB_CLASSES[selectedJob]) { // If a main class is selected (e.g., "Priest")
+                if (JOB_CLASSES[selectedJob]) {
                     const subclasses = JOB_CLASSES[selectedJob];
                     filteredMembers = members.filter(member => subclasses.includes(member.job));
-                } else { // If a specific subclass is selected (e.g., "Saint")
+                } else {
                     filteredMembers = members.filter(member => member.job === selectedJob);
                 }
             }
@@ -660,9 +672,11 @@
                 noMembersMessage.classList.add('hidden');
                 filteredMembers.forEach((member) => {
                     const row = document.createElement('tr');
+                    const colorClass = jobColorClasses[member.job] || 'text-gray-300'; // Get color from mapping
+
                     row.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">${member.name}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${member.job}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${colorClass}">${member.name}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-bold ${colorClass}">${member.job}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <button data-member-name="${member.name}" class="delete-btn" ${isAdminMode ? '' : 'disabled'}>Delete</button>
                         </td>
@@ -670,7 +684,6 @@
                     memberTableBody.appendChild(row);
                 });
             }
-            // Always populate the allocation dropdown with ALL members, not the filtered list
             populateRecipientDropdown();
         }
 
@@ -685,17 +698,15 @@
 
             const allocationsToDelete = allocations.filter(alloc => alloc.recipientName === memberName);
 
-            // Step 1: Update local state & UI for instant feedback
             members.splice(indexToDelete, 1);
             renderMembers();
             renderJobAllocationSummary();
             showMessageBox(`Member '${memberName}' removed. Syncing with cloud...`, 'success');
 
-            // Step 2: Update database in the background
             try {
-                const dbPromises = [saveMembers()]; // Promise to save updated members list
+                const dbPromises = [saveMembers()];
                 allocationsToDelete.forEach(alloc => {
-                    dbPromises.push(deleteAllocationFromFirestore(alloc.id)); // Promises to delete allocations
+                    dbPromises.push(deleteAllocationFromFirestore(alloc.id));
                 });
                 
                 await Promise.all(dbPromises);
@@ -753,11 +764,11 @@
         
         function renderAllocations() {
             const rarityColorClasses = {
-                'Common': 'text-slate-200',      // White
-                'Uncommon': 'text-green-400',    // Green
-                'Rare': 'text-blue-400',         // Blue
-                'Epic': 'text-purple-400',       // Purple
-                'Legendary': 'text-amber-400'    // Dark Yellow
+                'Common': 'text-slate-200',
+                'Uncommon': 'text-green-400',
+                'Rare': 'text-blue-400',
+                'Epic': 'text-purple-400',
+                'Legendary': 'text-amber-400'
             };
 
             allocationTableBody.innerHTML = '';
@@ -922,7 +933,6 @@
             showMessageBox('Allocation added successfully!', 'success');
         });
 
-        // *** NEW: Event listener for the new member filter ***
         memberFilterJob.addEventListener('change', renderMembers);
 
         filterJobSelect.addEventListener('change', () => {
