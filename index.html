@@ -185,6 +185,34 @@
                 </div>
             </form>
 
+            <div class="mb-4">
+                <label for="memberFilterJob" class="block text-sm font-medium text-gray-300 mb-1">Filter Members by Job:</label>
+                <select id="memberFilterJob" class="mt-1 block w-full md:w-1/3 rounded-md shadow-sm">
+                    <option value="All">All Members</option>
+                    <optgroup label="Priest">
+                        <option value="Priest">All Priests</option>
+                        <option value="Saint">Saint</option>
+                        <option value="Paladin">Paladin</option>
+                    </optgroup>
+                    <optgroup label="Warrior">
+                        <option value="Warrior">All Warriors</option>
+                        <option value="Berserker">Berserker</option>
+                        <option value="Defender">Defender</option>
+                    </optgroup>
+                    <optgroup label="Rogue">
+                        <option value="Rogue">All Rogues</option>
+                        <option value="Sniper">Sniper</option>
+                        <option value="Assassin">Assassin</option>
+                    </optgroup>
+                    <optgroup label="Mage">
+                        <option value="Mage">All Mages</option>
+                        <option value="Archmage">Archmage</option>
+                        <option value="Dark Wizard">Dark Wizard</option>
+                    </optgroup>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
             <div class="overflow-x-auto rounded-lg shadow-md">
                 <table class="min-w-full divide-y divide-gray-700">
                     <thead class="bg-gray-700">
@@ -284,7 +312,7 @@
             <h2 class="text-2xl font-bold text-blue-300 mb-4 px-6">Current Allocations</h2>
 
             <div class="mb-4 px-6">
-                <label for="filterJob" class="block text-sm font-medium text-gray-300 mb-1">Filter by Job:</label>
+                <label for="filterJob" class="block text-sm font-medium text-gray-300 mb-1">Filter Allocations by Job:</label>
                 <select id="filterJob" class="mt-1 block w-full md:w-1/3 rounded-md shadow-sm">
                     <option value="All">All Jobs</option>
                     <optgroup label="Priest">
@@ -399,6 +427,7 @@
         const addMemberBtn = document.getElementById('addMemberBtn');
         const memberTableBody = document.getElementById('memberTableBody');
         const noMembersMessage = document.getElementById('noMembersMessage');
+        const memberFilterJob = document.getElementById('memberFilterJob'); // *** NEW: Get member filter dropdown
 
         // Admin Control Elements
         const adminLoginBtn = document.getElementById('adminLoginBtn');
@@ -607,13 +636,29 @@
             }
         }
 
+        // *** MODIFIED: renderMembers now filters based on the new dropdown ***
         function renderMembers() {
+            const selectedJob = memberFilterJob.value;
+            let filteredMembers = members;
+
+            if (selectedJob !== 'All') {
+                if (JOB_CLASSES[selectedJob]) { // If a main class is selected (e.g., "Priest")
+                    const subclasses = JOB_CLASSES[selectedJob];
+                    filteredMembers = members.filter(member => subclasses.includes(member.job));
+                } else { // If a specific subclass is selected (e.g., "Saint")
+                    filteredMembers = members.filter(member => member.job === selectedJob);
+                }
+            }
+            
             memberTableBody.innerHTML = '';
-            if (members.length === 0) {
+            if (filteredMembers.length === 0) {
                 noMembersMessage.classList.remove('hidden');
+                noMembersMessage.textContent = selectedJob === 'All' 
+                    ? 'No members added yet. Add one above!'
+                    : `No members found for job: ${selectedJob}`;
             } else {
                 noMembersMessage.classList.add('hidden');
-                members.forEach((member) => {
+                filteredMembers.forEach((member) => {
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">${member.name}</td>
@@ -625,6 +670,7 @@
                     memberTableBody.appendChild(row);
                 });
             }
+            // Always populate the allocation dropdown with ALL members, not the filtered list
             populateRecipientDropdown();
         }
 
@@ -705,7 +751,6 @@
             });
         }
         
-        // *** MODIFIED FUNCTION FOR RARITY COLORS ***
         function renderAllocations() {
             const rarityColorClasses = {
                 'Common': 'text-slate-200',      // White
@@ -732,7 +777,6 @@
                 noAllocationsMessage.classList.add('hidden');
                 filteredAllocations.forEach((allocation) => {
                     const row = document.createElement('tr');
-                    // Determine the color class based on rarity, with a fallback
                     const colorClass = rarityColorClasses[allocation.itemRarity] || 'text-gray-300';
                     
                     row.innerHTML = `
@@ -877,6 +921,9 @@
             jobSpecificationSelect.value = "";
             showMessageBox('Allocation added successfully!', 'success');
         });
+
+        // *** NEW: Event listener for the new member filter ***
+        memberFilterJob.addEventListener('change', renderMembers);
 
         filterJobSelect.addEventListener('change', () => {
             renderAllocations();
