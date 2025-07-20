@@ -441,15 +441,6 @@
         };
 
         /**
-         * Helper function to get all subclasses for a given main class.
-         * @param {string} mainClass - The main job class (e.g., "Priest").
-         * @returns {string[]} An array of subclasses, or an empty array if not found.
-         */
-        function getSubclassesForMainClass(mainClass) {
-            return JOB_CLASSES[mainClass] || [];
-        }
-
-        /**
          * Displays a message box with a given message and type (success/error).
          * @param {string} message - The message to display.
          * @param {string} type - 'success' or 'error'.
@@ -572,7 +563,7 @@
                             await signInAnonymously(auth);
                         } catch (error) {
                             console.error("Anonymous sign-in failed:", error);
-                            showMessageBox("Could not connect to the cloud. Using local mode.", "error");
+                            showMessageBox("Could not connect to the cloud.", "error");
                             userIdDisplay.textContent = `Status: Offline`;
                             userIdDisplay.style.display = 'block';
                             await loadDataAndSetupUI();
@@ -585,30 +576,22 @@
         }
 
 
-        /* --- Member Management Functions (Firestore Integrated) --- */
+        /* --- Member Management Functions --- */
 
-        /**
-         * Saves the current members array to Firestore.
-         */
         async function saveMembers() {
             if (!db) return;
             try {
-                // Use a shared ID instead of the private userId
                 const membersDocRef = doc(db, 'artifacts', appId, 'user_data', 'odin_valhalla_guild', 'members_collection', 'members_document');
                 await setDoc(membersDocRef, { members: JSON.stringify(members) });
             } catch (e) {
                 console.error("Error saving members to Firestore:", e);
-                showMessageBox("Error saving member data to cloud. Please try again.", "error");
+                showMessageBox("Error saving member data to cloud.", "error");
             }
         }
 
-        /**
-         * Loads members from Firestore.
-         */
         async function loadMembers() {
             if (!db) return;
             try {
-                // Use a shared ID instead of the private userId
                 const membersDocRef = doc(db, 'artifacts', appId, 'user_data', 'odin_valhalla_guild', 'members_collection', 'members_document');
                 const docSnap = await getDoc(membersDocRef);
                 if (docSnap.exists()) {
@@ -621,14 +604,10 @@
                 }
             } catch (e) {
                 console.error("Error loading members from Firestore:", e);
-                showMessageBox("Error loading member data from cloud. Starting with a fresh list.", "error");
                 members = [];
             }
         }
 
-        /**
-         * Renders all members from the 'members' array into the member table.
-         */
         function renderMembers() {
             memberTableBody.innerHTML = '';
             if (members.length === 0) {
@@ -638,16 +617,10 @@
                 members.forEach((member) => {
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">
-                            ${member.name}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                            ${member.job}
-                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">${member.name}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${member.job}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button data-member-name="${member.name}" class="delete-btn" ${isAdminMode ? '' : 'disabled'}>
-                                Delete
-                            </button>
+                            <button data-member-name="${member.name}" class="delete-btn" ${isAdminMode ? '' : 'disabled'}>Delete</button>
                         </td>
                     `;
                     memberTableBody.appendChild(row);
@@ -656,57 +629,41 @@
             populateRecipientDropdown();
         }
 
-        /**
-         * *** REVISED FUNCTION ***
-         * Deletes a member and their allocations. Updates UI instantly, then syncs with DB.
-         * @param {string} memberName - The name of the member to delete.
-         */
         async function deleteMember(memberName) {
             if (!isAdminMode) {
-                showMessageBox("Admin access required to delete members.", "error");
+                showMessageBox("Admin access required.", "error");
                 return;
             }
 
-            // Find the member and their allocations
             const indexToDelete = members.findIndex(m => m.name === memberName);
-            if (indexToDelete === -1) {
-                console.error("Tried to delete a member that was not found:", memberName);
-                return;
-            }
+            if (indexToDelete === -1) return;
+
             const allocationsToDelete = allocations.filter(alloc => alloc.recipientName === memberName);
 
-            // --- Step 1: Update local state and UI for immediate feedback ---
+            // Step 1: Update local state & UI for instant feedback
             members.splice(indexToDelete, 1);
-            renderMembers(); // Re-render the member list from the updated local state
-            renderJobAllocationSummary(); // Re-render the summary view
+            renderMembers();
+            renderJobAllocationSummary();
             showMessageBox(`Member '${memberName}' removed. Syncing with cloud...`, 'success');
 
-            // --- Step 2: Update the database in the background ---
+            // Step 2: Update database in the background
             try {
-                const dbPromises = [];
-                // Promise to save the new, shorter members list
-                dbPromises.push(saveMembers());
-                // Add promises to delete each associated allocation document
+                const dbPromises = [saveMembers()]; // Promise to save updated members list
                 allocationsToDelete.forEach(alloc => {
-                    dbPromises.push(deleteAllocationFromFirestore(alloc.id));
+                    dbPromises.push(deleteAllocationFromFirestore(alloc.id)); // Promises to delete allocations
                 });
                 
-                // Execute all database operations concurrently
                 await Promise.all(dbPromises);
-                console.log(`Successfully deleted ${memberName} and their ${allocationsToDelete.length} allocations from the database.`);
+                console.log(`Database synced for ${memberName}'s deletion.`);
             } catch (error) {
-                console.error("A database error occurred during deletion:", error);
-                showMessageBox("Error syncing deletion with the cloud. Please refresh.", "error");
-                // In a production app, you might want to revert the UI change or re-fetch data here.
+                console.error("DB error during deletion:", error);
+                showMessageBox("Error syncing deletion. Please refresh.", "error");
             }
         }
         
-        /**
-         * Populates the Recipient Name dropdown in the allocation form with current members.
-         */
         function populateRecipientDropdown() {
+            const currentRecipient = recipientNameSelect.value;
             recipientNameSelect.innerHTML = '<option value="">Select Recipient</option>';
-            // Sort members alphabetically for easier selection
             const sortedMembers = [...members].sort((a, b) => a.name.localeCompare(b.name));
             sortedMembers.forEach(member => {
                 const option = document.createElement('option');
@@ -714,134 +671,69 @@
                 option.textContent = member.name;
                 recipientNameSelect.appendChild(option);
             });
-            jobSpecificationSelect.value = "";
-            jobSpecificationSelect.options[0].textContent = "Auto-filled from Recipient";
+            recipientNameSelect.value = currentRecipient;
         }
 
-        /**
-         * Handles the selection of a recipient to auto-fill job specification.
-         */
         recipientNameSelect.addEventListener('change', () => {
-            const selectedRecipientName = recipientNameSelect.value;
-            const selectedMember = members.find(member => member.name === selectedRecipientName);
-
-            if (selectedMember) {
-                jobSpecificationSelect.value = selectedMember.job;
-            } else {
-                jobSpecificationSelect.value = "";
-                jobSpecificationSelect.options[0].textContent = "Auto-filled from Recipient";
-            }
+            const selectedMember = members.find(member => member.name === recipientNameSelect.value);
+            jobSpecificationSelect.value = selectedMember ? selectedMember.job : "";
         });
 
 
-        /* --- Allocation Management Functions (Firestore Integrated) --- */
+        /* --- Allocation Management Functions --- */
 
-        /**
-         * Saves an allocation to Firestore.
-         */
         async function saveAllocationToFirestore(allocation) {
             if (!db) return;
-            try {
-                // Use a shared ID instead of the private userId
-                const allocationDocRef = doc(db, 'artifacts', appId, 'user_data', 'odin_valhalla_guild', 'allocations_collection', allocation.id);
-                await setDoc(allocationDocRef, allocation);
-            } catch (e) {
-                console.error("Error saving allocation to Firestore:", e);
-                showMessageBox("Error saving allocation to cloud. Please try again.", "error");
-            }
+            const allocationDocRef = doc(db, 'artifacts', appId, 'user_data', 'odin_valhalla_guild', 'allocations_collection', allocation.id);
+            await setDoc(allocationDocRef, allocation);
         }
 
-        /**
-         * Deletes an allocation from Firestore.
-         */
         async function deleteAllocationFromFirestore(allocationId) {
             if (!db) return;
-            // This function is now just for the DB operation. The listener will handle the UI.
             const allocationDocRef = doc(db, 'artifacts', appId, 'user_data', 'odin_valhalla_guild', 'allocations_collection', allocationId);
             await deleteDoc(allocationDocRef);
         }
 
-        /**
-         * Loads allocations from Firestore using a real-time listener.
-         */
         function setupAllocationsListener() {
             if (!db) return;
-            // Use a shared ID instead of the private userId
             const q = collection(db, 'artifacts', appId, 'user_data', 'odin_valhalla_guild', 'allocations_collection');
             onSnapshot(q, (snapshot) => {
-                const newAllocations = [];
-                snapshot.forEach((doc) => {
-                    newAllocations.push(doc.data());
-                });
-                allocations = newAllocations;
+                allocations = snapshot.docs.map(doc => doc.data());
                 renderAllocations();
                 renderJobAllocationSummary();
             }, (error) => {
                 console.error("Error listening to allocations:", error);
-                showMessageBox("Error loading real-time allocations. Please refresh.", "error");
             });
         }
         
-        /**
-         * Renders allocations into the table, optionally filtered by job.
-         */
         function renderAllocations() {
             allocationTableBody.innerHTML = '';
             const selectedJob = filterJobSelect.value;
-
-            let jobsToFilter = [];
-            if (selectedJob === 'All') {
-                jobsToFilter = null;
-            } else if (JOB_CLASSES.hasOwnProperty(selectedJob)) {
-                jobsToFilter = JOB_CLASSES[selectedJob];
-            } else {
-                jobsToFilter = [selectedJob];
-            }
-
-            const filteredAllocations = allocations.filter(allocation => {
-                if (jobsToFilter === null) {
-                    return true;
-                }
-                return jobsToFilter.includes(allocation.jobSpecification);
-            });
+            let jobsToFilter = (JOB_CLASSES[selectedJob]) ? JOB_CLASSES[selectedJob] : [selectedJob];
+            
+            const filteredAllocations = (selectedJob === 'All') 
+                ? allocations 
+                : allocations.filter(alloc => jobsToFilter.includes(alloc.jobSpecification));
 
             if (filteredAllocations.length === 0) {
                 noAllocationsMessage.classList.remove('hidden');
-                if (selectedJob !== 'All') {
-                    noAllocationsMessage.textContent = `No allocations found for '${selectedJob}'.`;
-                } else {
-                    noAllocationsMessage.textContent = 'No allocations added yet. Start by adding one above!';
-                }
+                noAllocationsMessage.textContent = selectedJob !== 'All' 
+                    ? `No allocations found for '${selectedJob}'.` 
+                    : 'No allocations added yet. Start by adding one above!';
             } else {
                 noAllocationsMessage.classList.add('hidden');
                 filteredAllocations.forEach((allocation) => {
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">
-                            ${allocation.recipientName}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                            ${allocation.skillItemType || 'N/A'}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                            ${allocation.itemRarity || 'N/A'}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                            ${allocation.jobSpecification || 'N/A'}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                            ${allocation.itemSpecification || 'N/A'}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                            ${allocation.date}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                            ${allocation.editedBy || 'N/A'}
-                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">${allocation.recipientName}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${allocation.skillItemType || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${allocation.itemRarity || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${allocation.jobSpecification || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${allocation.itemSpecification || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${allocation.date}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${allocation.editedBy || 'N/A'}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button data-allocation-id="${allocation.id}" class="delete-btn" ${isAdminMode ? '' : 'disabled'}>
-                                Delete
-                            </button>
+                            <button data-allocation-id="${allocation.id}" class="delete-btn" ${isAdminMode ? '' : 'disabled'}>Delete</button>
                         </td>
                     `;
                     allocationTableBody.appendChild(row);
@@ -849,220 +741,138 @@
             }
         }
 
-        /* --- Job Allocation Summary Function --- */
-        /**
-         * Renders a summary of members for the selected job, indicating if they received an item.
-         */
+        /* --- Job Allocation Summary Functions --- */
+
         function renderJobAllocationSummary() {
             jobAllocationSummaryDiv.innerHTML = '';
             const selectedJob = filterJobSelect.value;
 
             if (selectedJob === 'All') {
-                jobAllocationSummaryDiv.appendChild(jobSummaryMessage);
-                jobSummaryMessage.classList.remove('hidden');
+                jobAllocationSummaryDiv.innerHTML = `<p class="text-gray-400 text-center" id="jobSummaryMessage">Select a specific job from the "Filter by Job" dropdown above to see its allocation summary.</p>`;
                 return;
-            } else {
-                jobSummaryMessage.classList.add('hidden');
             }
 
-            let jobsToIncludeInSummary = [];
-            if (JOB_CLASSES.hasOwnProperty(selectedJob)) {
-                jobsToIncludeInSummary = JOB_CLASSES[selectedJob];
-            } else {
-                jobsToIncludeInSummary = [selectedJob];
-            }
-
+            let jobsToIncludeInSummary = JOB_CLASSES[selectedJob] || [selectedJob];
             const membersOfSelectedJob = members.filter(member => jobsToIncludeInSummary.includes(member.job));
 
             if (membersOfSelectedJob.length === 0) {
-                const noMembersFound = document.createElement('p');
-                noMembersFound.className = 'text-gray-400 text-center';
-                noMembersFound.textContent = `No members found for the '${selectedJob}' job.`;
-                jobAllocationSummaryDiv.appendChild(noMembersFound);
+                jobAllocationSummaryDiv.innerHTML = `<p class="text-gray-400 text-center">No members found for the '${selectedJob}' job.</p>`;
                 return;
             }
 
             let allReceived = true;
             membersOfSelectedJob.forEach(member => {
-                const receivedItem = allocations.some(alloc =>
-                    alloc.recipientName === member.name && jobsToIncludeInSummary.includes(alloc.jobSpecification)
-                );
-
+                const receivedItem = allocations.some(alloc => alloc.recipientName === member.name && jobsToIncludeInSummary.includes(alloc.jobSpecification));
+                if (!receivedItem) allReceived = false;
+                
                 const itemDiv = document.createElement('div');
                 itemDiv.className = `job-summary-item ${receivedItem ? 'received' : 'not-received'}`;
-                itemDiv.innerHTML = `
-                    <span class="font-bold">${member.name} (${member.job})</span>
-                    <span>${receivedItem ? 'Received Item' : 'Did Not Receive Item'}</span>
-                `;
+                itemDiv.innerHTML = `<span class="font-bold">${member.name} (${member.job})</span><span>${receivedItem ? 'Received Item' : 'Did Not Receive Item'}</span>`;
                 jobAllocationSummaryDiv.appendChild(itemDiv);
-
-                if (!receivedItem) {
-                    allReceived = false;
-                }
             });
 
             if (allReceived && membersOfSelectedJob.length > 0) {
                 const completionMessage = document.createElement('p');
                 completionMessage.className = 'text-green-400 font-bold text-center mt-4';
                 completionMessage.textContent = `All members of ${selectedJob} have received an item!`;
-                jobAllocationSummaryDiv.appendChild(completionMessage);
-
+                
                 const resetButton = document.createElement('button');
-                resetButton.className = 'px-4 py-2 bg-yellow-500 hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 rounded-md mt-2 text-white';
+                resetButton.className = 'block mx-auto px-4 py-2 bg-yellow-500 hover:bg-yellow-600 rounded-md mt-2 text-white';
                 resetButton.textContent = `Reset ${selectedJob} Allocations`;
                 resetButton.onclick = () => resetJobAllocations(selectedJob);
                 resetButton.disabled = !isAdminMode;
+                
+                jobAllocationSummaryDiv.appendChild(completionMessage);
                 jobAllocationSummaryDiv.appendChild(resetButton);
             }
         }
 
-        /**
-         * Resets all allocations for a specific job.
-         */
         async function resetJobAllocations(jobToReset) {
-            if (!isAdminMode) {
-                showMessageBox("Admin access required to reset allocations.", "error");
-                return;
-            }
-
-            let jobsToClear = [];
-            if (JOB_CLASSES.hasOwnProperty(jobToReset)) {
-                jobsToClear = JOB_CLASSES[jobToReset];
-            } else {
-                jobsToClear = [jobToReset];
-            }
-
+            if (!isAdminMode) return;
+            let jobsToClear = JOB_CLASSES[jobToReset] || [jobToReset];
             const allocationsToReset = allocations.filter(alloc => jobsToClear.includes(alloc.jobSpecification));
+
             if (allocationsToReset.length > 0) {
                 const deletePromises = allocationsToReset.map(alloc => deleteAllocationFromFirestore(alloc.id));
                 await Promise.all(deletePromises);
                 showMessageBox(`Allocations for ${jobToReset} have been reset!`, 'success');
-            } else {
-                showMessageBox(`No allocations found for ${jobToReset} to reset.`, 'error');
             }
         }
 
 
         /* --- Event Listeners and Initial Load --- */
         
-        // *** REVISED: Event Listener for Member Table using a more robust pattern ***
         memberTableBody.addEventListener('click', (event) => {
             const deleteButton = event.target.closest('.delete-btn');
-            if (deleteButton) {
-                const memberName = deleteButton.dataset.memberName;
-                if (memberName) {
-                    if (confirm(`Are you sure you want to delete member '${memberName}'? This will also delete all their allocations.`)) {
-                       deleteMember(memberName);
-                    }
+            if (deleteButton && deleteButton.dataset.memberName) {
+                if (confirm(`Are you sure you want to delete member '${deleteButton.dataset.memberName}'? This will also delete all their allocations.`)) {
+                   deleteMember(deleteButton.dataset.memberName);
                 }
             }
         });
         
-        // Event Listener for Allocation Table using a more robust pattern
         allocationTableBody.addEventListener('click', (event) => {
             const deleteButton = event.target.closest('.delete-btn');
-            if (deleteButton) {
-                const allocationId = deleteButton.dataset.allocationId;
-                if (allocationId) {
-                    if (confirm('Are you sure you want to delete this allocation?')) {
-                        // Just call the DB function. The real-time listener will handle the UI update.
-                        deleteAllocationFromFirestore(allocationId)
-                            .then(() => showMessageBox('Allocation deleted successfully!', 'success'))
-                            .catch(err => showMessageBox('Error deleting allocation from cloud.', 'error'));
-                    }
+            if (deleteButton && deleteButton.dataset.allocationId) {
+                if (confirm('Are you sure you want to delete this allocation?')) {
+                    deleteAllocationFromFirestore(deleteButton.dataset.allocationId)
+                        .then(() => showMessageBox('Allocation deleted.', 'success'))
+                        .catch(err => showMessageBox('Error deleting allocation.', 'error'));
                 }
             }
         });
 
-
-        // Member Form Submission
         memberForm.addEventListener('submit', async (event) => {
             event.preventDefault();
-            if (!isAdminMode) {
-                showMessageBox("Admin access required to add members.", "error");
-                return;
-            }
+            if (!isAdminMode) return;
             const memberName = memberNameInput.value.trim();
             const memberJob = memberJobSelect.value;
-
-            if (!memberName || memberJob === "") {
-                showMessageBox('Please enter a member name and select a job.', 'error');
+            if (!memberName || !memberJob) {
+                showMessageBox('Please enter a name and select a job.', 'error');
                 return;
             }
-
             if (members.some(m => m.name.toLowerCase() === memberName.toLowerCase())) {
                 showMessageBox(`Member '${memberName}' already exists!`, 'error');
                 return;
             }
-
             members.push({ name: memberName, job: memberJob });
-            await saveMembers(); // Save to DB
-            renderMembers(); // Update UI
+            await saveMembers();
+            renderMembers();
             memberForm.reset();
-            showMessageBox(`Member '${memberName}' added successfully!`, 'success');
+            showMessageBox(`Member '${memberName}' added.`, 'success');
             renderJobAllocationSummary();
         });
 
-        // Allocation Form Submission
         allocationForm.addEventListener('submit', async (event) => {
             event.preventDefault();
-            if (!isAdminMode) {
-                showMessageBox("Admin access required to add allocations.", "error");
-                return;
-            }
-
+            if (!isAdminMode) return;
             const recipientName = recipientNameSelect.value;
-            const skillItemType = skillItemTypeSelect.value;
-            const itemRarity = itemRaritySelect.value;
-            const jobSpecification = jobSpecificationSelect.value;
-            const itemSpecification = itemSpecificationInput.value.trim();
-
-            const currentDate = new Date().toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric'
-            });
-
-            if (!recipientName || !skillItemType || !itemRarity) {
-                showMessageBox('Please fill in all required fields (Recipient Name, Skill Item Type, Rarity).', 'error');
+            if (!recipientName) {
+                 showMessageBox('Please select a recipient.', 'error');
                 return;
             }
-
-            if (jobSpecification === "" || jobSpecification === "Select Job" || jobSpecification === "Auto-filled from Recipient") {
-                showMessageBox('Please select a Recipient to auto-fill Job Specification.', 'error');
-                return;
-            }
-
             const newAllocation = {
                 id: crypto.randomUUID(),
-                recipientName,
-                skillItemType,
-                itemRarity,
-                jobSpecification,
-                itemSpecification,
-                date: currentDate,
+                recipientName: recipientName,
+                skillItemType: skillItemTypeSelect.value,
+                itemRarity: itemRaritySelect.value,
+                jobSpecification: jobSpecificationSelect.value,
+                itemSpecification: itemSpecificationInput.value.trim(),
+                date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
                 editedBy: currentAdminUser
             };
-            
-            // Just save to DB. The listener will add it to the UI.
             await saveAllocationToFirestore(newAllocation);
-
             allocationForm.reset();
             jobSpecificationSelect.value = "";
-            jobSpecificationSelect.options[0].textContent = "Auto-filled from Recipient";
             showMessageBox('Allocation added successfully!', 'success');
         });
 
-        // Event listener for the filter dropdown
         filterJobSelect.addEventListener('change', () => {
             renderAllocations();
             renderJobAllocationSummary();
         });
 
-        // Initial load and render when the page loads
-        document.addEventListener('DOMContentLoaded', async () => {
-            await initializeFirebase();
-        });
+        document.addEventListener('DOMContentLoaded', initializeFirebase);
     </script>
 </body>
 </html>
