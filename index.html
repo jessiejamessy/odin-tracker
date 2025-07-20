@@ -635,8 +635,9 @@
                 noMembersMessage.classList.remove('hidden');
             } else {
                 noMembersMessage.classList.add('hidden');
-                members.forEach((member, index) => {
+                members.forEach((member) => { // <-- Index no longer needed here
                     const row = document.createElement('tr');
+                    // *** REVISED: Removed onclick, added data-member-name attribute to the button ***
                     row.innerHTML = `
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">
                             ${member.name}
@@ -645,7 +646,7 @@
                             ${member.job}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button onclick="deleteMemberFromUI(${index})" class="delete-btn" ${isAdminMode ? '' : 'disabled'}>
+                            <button data-member-name="${member.name}" class="delete-btn" ${isAdminMode ? '' : 'disabled'}>
                                 Delete
                             </button>
                         </td>
@@ -658,15 +659,17 @@
 
         /**
          * Deletes a member from the array and Firestore, then re-renders.
-         * This function is called from the UI.
-         * @param {number} index - The index of the member to delete.
+         * @param {string} memberName - The name of the member to delete.
          */
-        async function deleteMemberFromUI(index) {
+        async function deleteMember(memberName) {
             if (!isAdminMode) {
                 showMessageBox("Admin access required to delete members.", "error");
                 return;
             }
-            if (index > -1 && index < members.length) {
+
+            const index = members.findIndex(m => m.name === memberName);
+            
+            if (index > -1) {
                 const deletedMemberName = members[index].name;
                 members.splice(index, 1);
                 await saveMembers();
@@ -680,7 +683,7 @@
                 renderJobAllocationSummary();
             }
         }
-
+        
         /**
          * Populates the Recipient Name dropdown in the allocation form with current members.
          */
@@ -767,13 +770,14 @@
 
         /**
          * Deletes an allocation from the array and Firestore, then re-renders.
+         * @param {string} allocationId - The ID of the allocation to delete.
          */
-        async function deleteAllocationFromUI(idToDelete) {
+        async function deleteAllocation(allocationId) {
             if (!isAdminMode) {
                 showMessageBox("Admin access required to delete allocations.", "error");
                 return;
             }
-            await deleteAllocationFromFirestore(idToDelete);
+            await deleteAllocationFromFirestore(allocationId);
             showMessageBox('Allocation deleted successfully!', 'success');
         }
 
@@ -811,6 +815,7 @@
                 noAllocationsMessage.classList.add('hidden');
                 filteredAllocations.forEach((allocation) => {
                     const row = document.createElement('tr');
+                    // *** REVISED: Removed onclick, added data-allocation-id attribute to the button ***
                     row.innerHTML = `
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">
                             ${allocation.recipientName}
@@ -834,7 +839,7 @@
                             ${allocation.editedBy || 'N/A'}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button onclick="deleteAllocationFromUI('${allocation.id}')" class="delete-btn" ${isAdminMode ? '' : 'disabled'}>
+                            <button data-allocation-id="${allocation.id}" class="delete-btn" ${isAdminMode ? '' : 'disabled'}>
                                 Delete
                             </button>
                         </td>
@@ -941,9 +946,33 @@
 
         /* --- Event Listeners and Initial Load --- */
 
-        // MAKE THE DELETE FUNCTIONS GLOBALLY ACCESSIBLE FOR ONCLICK ATTRIBUTES
-        window.deleteMemberFromUI = deleteMemberFromUI;
-        window.deleteAllocationFromUI = deleteAllocationFromUI;
+        // *** NEW: Event Listener for Member Table using Event Delegation ***
+        memberTableBody.addEventListener('click', (event) => {
+            // Check if a delete button was clicked
+            if (event.target.classList.contains('delete-btn')) {
+                const memberName = event.target.dataset.memberName;
+                if (memberName) {
+                    // Ask for confirmation before deleting
+                    if (confirm(`Are you sure you want to delete member '${memberName}'? This will also delete all their allocations.`)) {
+                       deleteMember(memberName);
+                    }
+                }
+            }
+        });
+        
+        // *** NEW: Event Listener for Allocation Table using Event Delegation ***
+        allocationTableBody.addEventListener('click', (event) => {
+             // Check if a delete button was clicked
+            if (event.target.classList.contains('delete-btn')) {
+                const allocationId = event.target.dataset.allocationId;
+                if (allocationId) {
+                    if (confirm('Are you sure you want to delete this allocation?')) {
+                        deleteAllocation(allocationId);
+                    }
+                }
+            }
+        });
+
 
         // Member Form Submission
         memberForm.addEventListener('submit', async (event) => {
